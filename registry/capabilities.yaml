@@ -1,1 +1,7 @@
-capabilities: []
+capabilities:
+  - id: BC01
+    proyecto: portal-de-clientes
+    name: Identificación del cliente
+    epics:
+      - EP001
+    sdd_domain: identidad

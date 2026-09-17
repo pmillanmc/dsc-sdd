@@ -18,6 +18,7 @@ Lo escribe `/dsc-log`. Los IDs se reservan desde `registry/ids.yaml`.
 | DEC-007 | Los contadores de ID pasan de `products` a `proyectos`, con migración | Técnica | ACTIVE | 2026-08-14 |
 | DEC-008 | Las dependencias entre épicas se declaran en una columna de la tabla del roadmap | Producto | ACTIVE | 2026-08-28 |
 | DEC-009 | `started_at` se persiste en el estado, no solo como evento | Proceso | ACTIVE | 2026-08-28 |
+| DEC-010 | Cambiar algo aprobado: dos caminos y un criterio — contradice o precisa | Producto | ACTIVE | 2026-08-31 |
 
 ---
 
@@ -691,3 +692,108 @@ Ninguno sobre lo existente. El audit devuelve los mismos 0 errores y 14 avisos �
 emite nada sobre `proyecto-1`, que no tiene `started_at` en ninguna etapa— y el smoke pasa los
 dieciocho pasos. En `proyecto-1` la cronología muestra las fechas de aprobación que ya existían y
 deja el inicio vacío, sin inventarlo.
+
+---
+
+## DEC-010
+
+**Fecha:** 2026-08-31
+**Tipo:** Producto
+**Estado:** ACTIVE
+**Responsable:** Patricio Millán
+**Proyecto:** global
+**command_origin:** fix de cambios sobre discovery ya generado
+
+### Título
+
+Cambiar algo aprobado se resuelve con dos caminos y un solo criterio: contradice o precisa
+
+### Gap o motivo
+
+`/dsc-change` existía pero era la puerta de atrás. Declaraba un techo de cuatro condiciones que
+evaluaba el agente con criterio propio, y no gestionaba ninguna de las cinco cosas que un cambio
+sobre algo firmado tiene que mover. Grepeado, el comando no mencionaba `hash`, `claimed_by`,
+`emitirEvento`, `ARTIFACT_UPDATED`, `audit` ni `marcarStale`: cero de seis.
+
+El resultado está en los datos. En `proyecto-1`, F003 a F008 figuran `APPROVED` en `version: 1` con
+el contenido cambiado. Si hubieran pasado por el comando estarían en v2. Se editaron a mano, sin
+comando, y quedaron aprobadas con contenido que nadie firmó. Nadie se enteró por meses: el chequeo
+12 lo reporta como aviso y nada lo mostraba.
+
+Al medir qué faltaba realmente, apareció que casi todo ya estaba: `approve.mjs` ya llama a
+`marcarStale` y recalcula el hash al firmar, `habilitaSiguiente` ya bloquea aguas abajo,
+`outputs/history/` ya archiva cada versión, el chequeo 12 ya saltea lo que no está `APPROVED`, y el
+gate de `contracts/command-anatomy.md` ya contempla regenerar un artefacto aprobado. **Faltaba una
+sola pieza: la transición de `APPROVED` a `IN_REVIEW`.**
+
+### Alternativas consideradas
+
+1. Techo computable que rechaza el cambio cuando la cascada excede al propio ítem, más un script de
+   dos fases con `--check` y `--apply`.
+2. Nada de código: que `/dsc-status` muestre el chequeo 12 y que el comando derive al ciclo
+   `review → approve` que ya existe.
+3. Un script mínimo que hace solo la transición, más un intake que clasifica entre ajustar y
+   regenerar.
+
+### Por qué se descartaron
+
+La 1 era sobre-ingeniería y rechazaba en vez de guiar. El techo sobra: si la transición es honesta,
+el costo se hace evidente solo —el subárbol va a `STALE` y nada avanza—, así que el mecanismo ya
+castiga bien la elección equivocada. Le estaba agregando política donde alcanzaba la mecánica. Y
+exigía que la persona ya supiera qué artefacto tocar, que es justo lo que no sabe.
+
+La 2 deja el estado mintiendo entre la edición y la re-firma: el artefacto dice `APPROVED` y los
+comandos de abajo avanzan igual. Cambia una garantía por un aviso.
+
+### Decisión tomada
+
+1. **Dos caminos, no uno con techo.** `/dsc-change` es el punto de entrada que pregunta qué se
+   quiere cambiar en lenguaje de negocio, mapea a la cadena, y decide entre **ajustar** y
+   **regenerar**. Regenerar deja de ser el castigo por pasarse del techo y pasa a ser la opción
+   recomendada cuando el cambio es grande: son cuatro comandos, contra parchear veinte artefactos.
+2. **Un solo criterio: ¿contradice a un antecesor, o lo precisa?** Contradice → regenerar desde ese
+   antecesor. Precisa → ajustar. No es volumen de artefactos: cambiar el canal de notificación toca
+   dos features pero contradice una capacidad del roadmap, y parchear abajo deja al roadmap
+   mintiendo para siempre. Es la trazabilidad lo que decide.
+3. **Tercer nivel explícito.** Si el cambio contradice la iniciativa, ni regenerar la visión
+   alcanza: se dice que ya no es el mismo proyecto.
+4. **`scripts/reabrir.mjs` hace solo la transición**, y se corre **antes** de editar: versión +1,
+   `IN_REVIEW`, limpia firmas, cascada `STALE`, emite `ARTIFACT_UPDATED` con `was_approved`. No
+   edita el documento: eso es criterio. Después sigue el ciclo de siempre.
+5. **El hash no se toca.** Sigue siendo el de la versión firmada. Como el chequeo 12 saltea lo que
+   no está `APPROVED`, el aviso se apaga solo, y `approve.mjs` recalcula el hash al volver a firmar.
+   Todo el problema de los seis avisos era que nadie movía el estado.
+6. **El costo lo calcula `impact.mjs`, no el agente.** Y avisa además qué artefactos tienen
+   `version > 1`, que es el proxy exacto de "acá hubo trabajo humano" y es lo que se pierde al
+   regenerar.
+7. **Re-firmar no pisa una entrega.** `approve.mjs` conserva `HANDED_OFF` y agrega
+   `redelivery_pending`. Pisarlo a `APPROVED` borraba el único dato que dice que hay código
+   construyéndose sobre esa feature, y con eso se caía la guarda de `handoff.mjs`.
+8. **`rutaArtefacto` se movió a `lib/store.mjs`.** Estaba duplicada identica en `approve.mjs` y
+   `restore.mjs`, y `reabrir.mjs` habría sido la tercera copia.
+
+### Motivo
+
+El problema real no era la falta de un comando: era que el camino correcto no existía como
+transición y que el camino grande no estaba ofrecido. Una persona que quiere cambiar algo no sabe
+qué artefacto tocar, y si el modelo le pide que lo sepa, edita el archivo a mano. Eso es lo que
+pasó seis veces.
+
+Se descartó explícitamente todo lo que no hacía falta para esto: el techo computable, las dos fases,
+versionar el brief, `/sdd-resync` y el E2E entre repos. Son para el caso de una feature en
+construcción del otro lado del borde, que es coordinación humana y no se resuelve con un comando.
+
+### Artefactos modificados
+
+`scripts/reabrir.mjs` (nuevo), `scripts/approve.mjs`, `scripts/impact.mjs`, `scripts/restore.mjs`,
+`scripts/smoke.mjs`, `lib/store.mjs`, `.claude/commands/dsc-change.md`,
+`.claude/commands/dsc-status.md`, `.claude/commands/dsc-impact.md`, `CLAUDE.md`.
+
+### Impacto en la cadena
+
+Ninguno sobre lo existente. El audit sigue en 0 errores y 14 avisos, y el smoke pasa 21 pasos con
+tres nuevos: que reabrir devuelva a revisión y **apague** el aviso del chequeo 12, que re-firmar
+conserve la entrega, y que `approve.mjs` se niegue sobre algo aprobado derivando a `reabrir`.
+
+Los seis avisos del chequeo 12 en `proyecto-1` siguen ahí a propósito: son reales. Se apagan cuando
+esas features se reabran y se vuelvan a firmar, o se restauren.

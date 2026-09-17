@@ -73,7 +73,7 @@ invoque. No los leas todos.
 | portfolio, todos los proyectos | `/dsc-portfolio` | Vista PMO |
 | entregar, handoff, pasar a desarrollo | `/dsc-handoff` | Feature lista |
 | checklist, validar con stakeholders | `/dsc-checklist` | Antes de cerrar |
-| cambio chico, ajuste | `/dsc-change` | Cambio acotado |
+| cambiar, ajustar, corregir, rehacer | `/dsc-change` | Algo ya generado tiene que cambiar |
 | continuar, snapshot, otra sesión | `/dsc-snapshot` | Cerrás sesión |
 | test, smoke, probar el modelo | `/dsc-test` | Tocaste el modelo |
 

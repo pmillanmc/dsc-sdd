@@ -14,7 +14,7 @@
 import { join } from 'node:path';
 import { existsSync, readdirSync, readFileSync, copyFileSync, statSync } from 'node:fs';
 import {
-  ROOT, proyectoDir, leerEstado, escribirEstado, emitirEvento, sha256,
+  ROOT, proyectoDir, leerEstado, escribirEstado, emitirEvento, sha256, rutaArtefacto,
 } from '../lib/store.mjs';
 import { leerEntrada, escribirEntrada, marcarStale, etapaInfo } from '../lib/cascade.mjs';
 
@@ -23,24 +23,6 @@ function salir(msg) { console.error(msg); process.exit(1); }
 function arg(nombre) {
   const i = process.argv.indexOf(`--${nombre}`);
   return i === -1 ? null : process.argv[i + 1] ?? null;
-}
-
-function resolverRuta(slug, etapa, itemId) {
-  const base = proyectoDir(slug);
-  switch (etapa) {
-    case 'iniciativa': return join(base, 'iniciativa.md');
-    case 'vision':     return join(base, 'outputs', 'vision', 'vision.md');
-    case 'roadmap':    return join(base, 'outputs', 'roadmap', 'roadmap.md');
-    case 'release':    return join(base, 'outputs', 'releases', `${itemId}.md`);
-    case 'estimation': return join(base, 'outputs', 'estimations', `${itemId}.md`);
-    case 'features': {
-      const dir = join(base, 'outputs', 'features');
-      if (!existsSync(dir)) return null;
-      const f = readdirSync(dir).find((n) => n.startsWith(`${itemId}-`));
-      return f ? join(dir, f) : null;
-    }
-    default: return null;
-  }
 }
 
 function main() {
@@ -91,7 +73,7 @@ function main() {
   if (!objetivo) salir(`No existe la version v${versionPedida}. Disponibles: ${versiones.map((v) => 'v' + v.n).join(', ')}.`);
   if (objetivo.n === versionActual) salir(`v${objetivo.n} ya es la version vigente. No hay nada que restaurar.`);
 
-  const destino = resolverRuta(slug, etapa, itemId);
+  const destino = rutaArtefacto(slug, etapa, itemId);
   if (!destino) salir(`No se pudo resolver la ruta de "${referencia}".`);
 
   const updatedAlLeer = estado.updated;

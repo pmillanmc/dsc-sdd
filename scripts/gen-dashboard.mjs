@@ -78,7 +78,23 @@ function main() {
       });
       continue;
     }
-    proyectos.push({ ...m, sin_metricas: false, etapas });
+    /* Frescura de las metricas.
+       `m.generated` dice cuando se calcularon; `updated` del estado, cuando se
+       movio el proyecto. Si el estado es mas nuevo, lo que se dibuja es viejo.
+       Sin esta marca el tablero presenta numeros de hace semanas como si fueran
+       de hoy, y eso es peor que no mostrarlos: alguien decide sobre ellos. */
+    const estado = readJson(join(metricsDir(ini.slug), 'workflow-status.json'), null);
+    const desactualizado = Boolean(
+      estado?.updated && m.generated && Date.parse(estado.updated) > Date.parse(m.generated)
+    );
+
+    proyectos.push({
+      ...m,
+      sin_metricas: false,
+      desactualizado,
+      estado_updated: estado?.updated ?? null,
+      etapas,
+    });
   }
 
   // --- Portfolio: cruce con los repos SDD destino ---

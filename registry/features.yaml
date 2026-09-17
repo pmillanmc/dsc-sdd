@@ -1,1 +1,57 @@
-features: []
+features:
+  - id: F001
+    proyecto: portal-de-clientes
+    slug: identificacion-poliza-dni
+    proyecto_id: PRY-001
+    capability: BC01
+    epic: EP001
+    release: R1
+    users:
+      - U01
+    size: M
+    status: HANDED_OFF
+    decisions: []
+    depends_on: []
+    hash: sha256:18185b6a6904849bba2bf839811280eca082eee19e3a6eb23e020cd61d50e959
+    version: 1
+    feature_id: 001-identificacion-poliza-dni
+    target_repo: null
+    handed_off: 2026-09-09
+  - id: F002
+    proyecto: portal-de-clientes
+    slug: sesion-identificada
+    proyecto_id: PRY-001
+    capability: BC01
+    epic: EP001
+    release: R1
+    users:
+      - U01
+    size: S
+    status: HANDED_OFF
+    decisions: []
+    depends_on:
+      - F001
+    hash: sha256:0d4512b89a8ce448bca8d94a6f1889b814c3855c7fcee2f42ceba8f95bc4b775
+    version: 1
+    feature_id: 002-sesion-identificada
+    target_repo: null
+    handed_off: 2026-09-09
+  - id: F003
+    proyecto: portal-de-clientes
+    slug: intentos-fallidos
+    proyecto_id: PRY-001
+    capability: BC01
+    epic: EP001
+    release: R1
+    users:
+      - U01
+    size: S
+    status: HANDED_OFF
+    decisions: []
+    depends_on:
+      - F001
+    hash: sha256:2d3ef5298f5101e4d1f9ee432c869a84b09a2da270a8bf19b2d81162102e315c
+    version: 1
+    feature_id: 003-intentos-fallidos
+    target_repo: ../test-centralizado-platform
+    handed_off: 2026-09-09

@@ -1,4 +1,6 @@
 global:
-  PRY: 0
-  DEC: 9
-proyectos: {}
+  PRY: 1
+  DEC: 10
+proyectos:
+  portal-de-clientes:
+    F: 3

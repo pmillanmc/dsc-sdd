@@ -1,1 +1,8 @@
-proyectos: []
+proyectos:
+  - id: PRY-001
+    slug: portal-de-clientes
+    nombre: Portal de Clientes
+    cliente: Interno — prueba de extremo a extremo del modelo
+    status: DISCOVERY
+    created: 2026-09-09
+    owner: Patricio Millán

@@ -57,6 +57,26 @@ function main() {
     console.log(`    se regenera con ${info?.command ?? '/dsc-status'}`);
   }
 
+  /* Trabajo humano en riesgo.
+     `version > 1` es el proxy exacto de "alguien trabajo esto a mano despues de
+     generarlo": la v1 sale del generador, las siguientes salen de un review o de
+     un cambio. Regenerar desde arriba pisa ese trabajo — queda recuperable en
+     history/, pero nadie va a diffear ocho features para encontrarlo.
+     Es la unica parte del costo que no se ve mirando la lista de afectados. */
+  const conTrabajo = afectados
+    .map((a) => ({ ...a, entrada: leerEntrada(estado, a.etapa, a.item) }))
+    .filter((a) => (a.entrada?.version ?? 1) > 1);
+
+  if (conTrabajo.length) {
+    console.log(`\nOJO — ${conTrabajo.length} de esos artefactos tienen trabajo hecho a mano:\n`);
+    for (const a of conTrabajo) {
+      const ref = a.item ? `${a.etapa}/${a.item}` : a.etapa;
+      console.log(`  ${ref}  v${a.entrada.version}`);
+    }
+    console.log(`\nSi se regenera desde arriba, ese trabajo se pierde. Queda archivado en`);
+    console.log(`outputs/history/, y se puede recuperar con /dsc-restore.`);
+  }
+
   console.log(`\nNo se cambio nada todavia. Si decidis avanzar, registra la decision con /dsc-log.`);
 }
 
