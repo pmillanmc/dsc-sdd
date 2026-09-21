@@ -19,6 +19,7 @@ Lo escribe `/dsc-log`. Los IDs se reservan desde `registry/ids.yaml`.
 | DEC-008 | Las dependencias entre épicas se declaran en una columna de la tabla del roadmap | Producto | ACTIVE | 2026-08-28 |
 | DEC-009 | `started_at` se persiste en el estado, no solo como evento | Proceso | ACTIVE | 2026-08-28 |
 | DEC-010 | Saneamiento determinista de Unicode invisible y ANSI en `ideas/` | Técnica | ACTIVE | 2026-09-15 |
+| DEC-011 | Expansión del saneamiento Unicode: cinco categorías invisibles nuevas | Técnica | ACTIVE | 2026-09-21 |
 
 ---
 
@@ -774,3 +775,82 @@ los dieciocho pasos sin cambios — el saneamiento no está enganchado a ningún
 todavía, es un paso previo de `/dsc-refine`, así que no hay caso nuevo que agregar al smoke sin
 antes decidir si merece su propio chequeo en `discovery-audit.mjs` (quedó fuera de alcance de esta
 decisión: ver "Alternativas consideradas", opción 2).
+
+---
+
+## DEC-011
+
+**Fecha:** 2026-09-21
+**Tipo:** Técnica
+**Estado:** ACTIVE
+**Responsable:** Kevin Belmonte
+**Rol:** Proguide
+**Proyecto:** global
+**command_origin:** expansión de cobertura Unicode a lib/sanitize.mjs (continuación de DEC-010)
+
+### Título
+
+Expansión del saneamiento Unicode: cinco categorías invisibles nuevas
+
+### Gap o motivo
+
+`lib/sanitize.mjs` quedó incompleta en la primera pasada (DEC-010). La cobertura de Unicode invisible
+removía bidi override/isolate, zero-width, variation selectors, tag characters y control C0/C1,
+pero faltaban cinco categorías adicionales también invisibles y con capacidad de ocultar texto:
+
+1. **Soft hyphen (SHY, U+00AD)** — inserción manual de guiones suaves en palabras
+2. **Rellenos Hangul (U+115F, U+1160, U+3164, U+FFA0)** — caracteres de espaciado silencioso en texto coreano
+3. **Marcas direccionales (LRM/RLM/ALM: U+200E, U+200F, U+061C)** — controles de dirección de lectura
+4. **Combining grapheme joiner (CGJ, U+034F)** — modificador de renderización de caracteres
+5. **Braille blank (U+2800)** — punto braille vacío, literalmente un espacio que no se ve como tal
+
+Ninguna estaba en el regex de `sanearUnicode()` de DEC-010, aunque todas coinciden con la
+amenaza que esa decisión identificó: caracteres que un LLM tiene altas chances de no detectar
+visualmente cuando lee el contenido bruto.
+
+### Alternativas consideradas
+
+1. Ninguna evaluada.
+
+### Por qué se descartaron
+
+No hay una forma alternativa razonable de cubrirlas. O se agregan al regex de `sanearUnicode()`,
+o quedan sin sanear. Dejarlas sin sanear reabre el riesgo que motivó DEC-010: son exactamente la
+clase de caracteres invisibles que el modelo buscó eliminar, solo que se quedaron fuera en la
+primera pasada.
+
+### Decisión tomada
+
+Se agregaron cinco categorías nuevas al array `CATEGORIAS` en `lib/sanitize.mjs`:
+
+- 'marca direccional (LRM/RLM/ALM)' → captura U+200E, U+200F, U+061C
+- 'soft hyphen' → captura U+00AD
+- 'combining grapheme joiner' → captura U+034F
+- 'relleno hangul' → captura U+115F, U+1160, U+3164, U+FFA0
+- 'braille blank' → captura U+2800
+
+El regex de `sanearUnicode()` se expandió sin cambiar el orden de los pasos ni la estructura del
+resto del saneamiento. Verificado con:
+
+- `npm test`: 19/19 pasos del smoke completo, todos verdes
+- Prueba manual: se pasó cada una de las cinco categorías nuevas por `lib/sanitize.mjs`,
+  verificado que detectan correctamente y que `sanear()` las remueve sin dejar residuos
+
+### Motivo
+
+Completar la cobertura de Unicode invisible iniciada en DEC-010. El riesgo de que un LLM no
+detecte estos caracteres es el mismo. DEC-010 dejó la puerta abierta expresamente —en su sección
+"Impacto en la cadena" menciona: "no hay caso nuevo que agregar al smoke sin antes decidir si
+merece su propio chequeo en `discovery-audit.mjs`" — y esto no agrega un chequeo sino que amplía
+la lógica existente que funcionó en los dieciocho pasos.
+
+### Artefactos modificados
+
+`lib/sanitize.mjs` — expansión del array `CATEGORIAS` (5 nuevas) y del regex de `sanearUnicode()`
+(5 patrones nuevos).
+
+### Impacto en la cadena
+
+Ninguno. Es un cambio de herramienta interna (`lib/sanitize.mjs`), no toca specs/ ni proyectos/.
+No hace falta correr `/dsc-impact` ni invalidar artefactos de negocio. El smoke test sigue pasando
+en su totalidad (19/19) sin casos nuevos que agregar.

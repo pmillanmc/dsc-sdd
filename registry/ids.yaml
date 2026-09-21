@@ -1,9 +1,10 @@
 global:
   PRY: 6
-  DEC: 10
+  DEC: 11
 proyectos:
   prueba-saneamiento:
     U: 2
     OE: 1
     BC: 2
     EP: 2
+    F: 5

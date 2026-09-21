@@ -1,1 +1,106 @@
-features: []
+features:
+  - id: F001
+    proyecto: prueba-saneamiento
+    proyecto_id: PRY-006
+    slug: registro-recepcion-tablet
+    titulo: Registro de recepcion desde tablet
+    capability: BC01
+    epic: EP001
+    release: R1
+    users:
+      - U01
+    priority: Critica
+    depends_on: []
+    size: null
+    status: DRAFT
+    version: 2
+    created: 2026-09-21
+    claimed_by: null
+    claimed_at: null
+    sdd_feature_id: null
+    archivo: proyectos/prueba-saneamiento/outputs/features/F001-registro-recepcion-tablet.md
+  - id: F002
+    proyecto: prueba-saneamiento
+    proyecto_id: PRY-006
+    slug: validaciones-registro
+    titulo: Validaciones de datos del registro
+    capability: BC01
+    epic: EP001
+    release: R1
+    users:
+      - U01
+    priority: Alta
+    depends_on:
+      - F001
+    size: null
+    status: DRAFT
+    version: 2
+    created: 2026-09-21
+    claimed_by: null
+    claimed_at: null
+    sdd_feature_id: null
+    archivo: proyectos/prueba-saneamiento/outputs/features/F002-validaciones-registro.md
+  - id: F003
+    proyecto: prueba-saneamiento
+    proyecto_id: PRY-006
+    slug: registro-con-wifi-inestable
+    titulo: Funcionamiento con wifi inestable
+    capability: BC01
+    epic: EP001
+    release: R1
+    users:
+      - U01
+    priority: Critica
+    depends_on:
+      - F001
+    size: null
+    status: DRAFT
+    version: 2
+    created: 2026-09-21
+    claimed_by: null
+    claimed_at: null
+    sdd_feature_id: null
+    archivo: proyectos/prueba-saneamiento/outputs/features/F003-registro-con-wifi-inestable.md
+  - id: F004
+    proyecto: prueba-saneamiento
+    proyecto_id: PRY-006
+    slug: estado-recepciones
+    titulo: Vista de estado de recepciones por anden
+    capability: BC02
+    epic: EP002
+    release: R1
+    users:
+      - U02
+    priority: Critica
+    depends_on:
+      - F001
+      - F003
+    size: null
+    status: DRAFT
+    version: 2
+    created: 2026-09-21
+    claimed_by: null
+    claimed_at: null
+    sdd_feature_id: null
+    archivo: proyectos/prueba-saneamiento/outputs/features/F004-estado-recepciones.md
+  - id: F005
+    proyecto: prueba-saneamiento
+    proyecto_id: PRY-006
+    slug: destrabar-camion
+    titulo: Accion de destrabar camion
+    capability: BC02
+    epic: EP002
+    release: R1
+    users:
+      - U02
+    priority: Alta
+    depends_on:
+      - F004
+    size: null
+    status: DRAFT
+    version: 2
+    created: 2026-09-21
+    claimed_by: null
+    claimed_at: null
+    sdd_feature_id: null
+    archivo: proyectos/prueba-saneamiento/outputs/features/F005-destrabar-camion.md
