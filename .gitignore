@@ -5,6 +5,14 @@
 # los borradores de ideas/ salen de minutas y mails de terceros.
 proyectos/
 
+# Registro de trabajo de clientes. El repo del modelo lleva la logica, no los
+# proyectos de nadie: estos archivos se llenan solos con lo que hace cada PM y
+# cualquier `git add -A` los commitea. Las plantillas .template.yaml si viajan.
+registry/proyectos.yaml
+registry/capabilities.yaml
+registry/features.yaml
+registry/ids.yaml
+
 # Salida generada. Se rehace con /dsc-dashboard y lleva adentro los datos
 # de todos los proyectos, que es justamente lo que no se publica.
 dashboard/data.js

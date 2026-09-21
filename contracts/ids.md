@@ -24,11 +24,31 @@ Si colisionan o se saltan, la cadena se rompe en silencio.
 
 Contar archivos parece funcionar hasta que dos personas trabajan en paralelo sobre la carpeta sincronizada: ambas ven tres features, ambas crean `F004`. El registro es el único que sabe cuál fue el último entregado.
 
+### Qué contador viaja y cuál no
+
+`DEC` numera decisiones sobre **el modelo**: es del framework, se versiona y viaja
+con el repo, en `registry/decisiones.yaml`.
+
+Todo el resto —`PRY`, `U`, `BC`, `OE`, `EP`, `R`, `F`— numera trabajo de un
+cliente. Vive en `registry/ids.yaml`, que es **local a la máquina del PM** y está
+gitignoreado, igual que `proyectos/`.
+
+Tenerlos juntos hacía que un mismo archivo fuera a la vez estado compartido y
+estado local: conflictuaba en cada merge, y los nombres de los proyectos
+terminaban commiteados sin que nadie lo decidiera.
+
+**Un contador local no evita colisiones entre clones.** Dos personas en ramas
+distintas pueden reservar el mismo `DEC-nnn` y cada una creerse dueña: pasó, y se
+resuelve renumerando en el merge. La regla de no contar archivos sigue valiendo
+dentro de una máquina, que es donde fue pensada.
+
 ```yaml
-# registry/ids.yaml
+# registry/decisiones.yaml — versionado
+DEC: 12
+
+# registry/ids.yaml — local, gitignoreado
 global:
   PRY: 1
-  DEC: 3
 proyectos:
   gestion-identidades:
     U: 4

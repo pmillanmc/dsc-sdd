@@ -21,6 +21,7 @@ Lo escribe `/dsc-log`. Los IDs se reservan desde `registry/ids.yaml`.
 | DEC-010 | Cambiar algo aprobado: dos caminos y un criterio — contradice o precisa | Producto | ACTIVE | 2026-08-31 |
 | DEC-011 | Saneamiento determinista de Unicode invisible y ANSI en `ideas/` | Técnica | ACTIVE | 2026-09-15 |
 | DEC-012 | Expansión del saneamiento Unicode: cinco categorías invisibles nuevas | Técnica | ACTIVE | 2026-09-21 |
+| DEC-013 | El registro de trabajo local deja de viajar con el modelo | Técnica | ACTIVE | 2026-09-21 |
 
 ---
 
@@ -959,3 +960,66 @@ la lógica existente que funcionó en los dieciocho pasos.
 Ninguno. Es un cambio de herramienta interna (`lib/sanitize.mjs`), no toca specs/ ni proyectos/.
 No hace falta correr `/dsc-impact` ni invalidar artefactos de negocio. El smoke test sigue pasando
 en su totalidad (19/19) sin casos nuevos que agregar.
+
+---
+
+## DEC-013
+
+**Fecha:** 2026-09-21
+**Tipo:** Técnica
+**Estado:** ACTIVE
+**Responsable:** Patricio Millán
+
+### Qué se decidió
+
+`registry/proyectos.yaml`, `capabilities.yaml`, `features.yaml` e `ids.yaml`
+pasan a estar gitignoreados. Se versionan sus `*.template.yaml`, y el contador
+de decisiones se muda a `registry/decisiones.yaml`, que sí viaja.
+
+### Por qué
+
+El repo del modelo lleva la lógica, no los proyectos de nadie. Pero esos cuatro
+archivos son **archivos trackeados que las herramientas del modelo escriben**:
+se llenan solos con el trabajo de cada PM y cualquier `git add -A` los commitea
+sin que nadie lo decida.
+
+No es hipotético. Pasó dos veces el mismo día, en dos ramas distintas:
+`portal-de-clientes` en una y `alejandria` + `prueba-saneamiento` en otra, las
+dos rumbo a repositorios públicos de GitHub. Esta vez eran proyectos internos.
+El próximo es un cliente real, con su nombre, sus capacidades de negocio y los
+títulos de todo lo que va a construir.
+
+Tenía además dos efectos que parecían problemas separados y eran el mismo:
+
+- **El audit salía rojo en cualquier clone.** El índice viajaba lleno y los
+  archivos de `proyectos/` no viajan nunca, así que el CHECK 1 encontraba
+  features registradas sin archivo. No era un bug del check: era un archivo con
+  estado local siendo versionado. `origin/main`, con el registro vacío, da verde.
+- **`ids.yaml` conflictuaba en cada merge**, porque mezclaba el contador de
+  decisiones —del modelo, compartido— con los de proyectos —locales—.
+
+### Qué se descartó
+
+**Relajar el CHECK 1** para que no marque proyectos ausentes. Trata el síntoma:
+el dato seguiría saliendo del repo igual.
+
+**Dejarlo en la disciplina de quien commitea.** Ya falló dos veces en un día,
+con dos personas distintas. Una regla que depende de que nadie se equivoque no
+es una regla.
+
+### Sobre el contador de decisiones
+
+`DEC` se separa porque numera decisiones sobre el modelo: es lo único de
+`ids.yaml` que de verdad se comparte.
+
+Y quedó a la vista que **un contador local no evita colisiones entre clones**:
+dos ramas generaron `DEC-010` para decisiones distintas, cada una con su propio
+`ids.yaml`. La regla de `contracts/ids.md` —nunca contar archivos— sigue valiendo
+dentro de una máquina, que es donde fue pensada. Entre clones, la colisión se
+resuelve renumerando en el merge.
+
+### Impacto en la cadena
+
+Ninguno para el trabajo existente: los archivos siguen en disco y el código ya
+los leía con fallback, así que un clone sin ellos funciona. Un PM que actualice
+no pierde nada.

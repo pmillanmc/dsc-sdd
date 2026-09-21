@@ -44,7 +44,14 @@ const debe = (cond, msg) => { if (!cond) throw new Error(msg); };
 // restaura al final: una prueba que contamina el registro es peor que no probar.
 const respaldo = {};
 function respaldar() {
-  for (const r of REG) respaldo[r] = readFileSync(join(ROOT, 'registry', `${r}.yaml`), 'utf8');
+  for (const r of REG) {
+    const path = join(ROOT, 'registry', `${r}.yaml`);
+    // Desde DEC-013 estos archivos estan gitignoreados: un clone recien hecho no
+    // los tiene, y eso no es un error sino el estado inicial de una maquina que
+    // todavia no hizo ningun discovery. Se anota como ausente para poder dejar
+    // el arbol como estaba, sin dejar registros vacios de una corrida de prueba.
+    respaldo[r] = existsSync(path) ? readFileSync(path, 'utf8') : null;
+  }
 }
 /** Espera bloqueante sin dependencias: el smoke es sincrono de punta a punta. */
 const esperar = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
@@ -72,7 +79,9 @@ function borrarProyecto() {
 
 function restaurar() {
   for (const r of REG) {
-    if (respaldo[r] !== undefined) writeFileSync(join(ROOT, 'registry', `${r}.yaml`), respaldo[r], 'utf8');
+    const path = join(ROOT, 'registry', `${r}.yaml`);
+    if (respaldo[r] === null) { if (existsSync(path)) unlinkSync(path); }
+    else if (respaldo[r] !== undefined) writeFileSync(path, respaldo[r], 'utf8');
   }
   const r = borrarProyecto();
   if (!r.ok) {

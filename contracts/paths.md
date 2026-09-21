@@ -43,7 +43,8 @@ proyectos/<slug>/
 | `templates/` | Plantillas de artefacto | Mantenimiento del modelo |
 | `config/` | `workflow`, `governance`, `review-policy` | El humano |
 | `contracts/` | Este documento y sus pares | Mantenimiento del modelo |
-| `registry/` | Índices globales | `lib/registry.mjs` |
+| `registry/*.template.yaml`, `registry/decisiones.yaml` | Plantillas y contador de decisiones — **del modelo, versionados** | Mantenimiento del modelo |
+| `registry/{proyectos,capabilities,features,ids}.yaml` | Índices del trabajo local — **gitignoreados, no viajan** | `lib/registry.mjs` |
 | `proyectos/` | Un directorio por proyecto | `/dsc-new` |
 | `dashboard/` | `shell.html` (plantilla, se edita a mano) | Mantenimiento del modelo |
 | `dashboard/` | `index.html` (tablero autocontenido), `data.js` | `gen-dashboard.mjs` |
