@@ -27,6 +27,8 @@ proyectos/<slug>/
 └── metrics/
     ├── workflow-status.json
     ├── project-metrics.json
+    ├── estado.json                      ← plan vigente: lo que se publica afuera
+    ├── base/F<nnn>-v<n>.json            ← linea base por entrega, inmutable
     ├── events.jsonl
     └── audit-result.json
 ```
