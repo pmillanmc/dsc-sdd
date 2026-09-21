@@ -9,6 +9,7 @@ Toda spec, plan y tarea se subordina a este documento. Un desvío requiere entra
 - **MUST** — Todo dato de artefacto se escapa antes de inyectarse en HTML (`<`, `>`, U+2028, U+2029) y se renderiza por `textContent` o helper `esc()`.
 - **MUST** — El HTML generado declara CSP `default-src 'none'`. Sin fetch, sin XHR, sin WebSocket.
 - **MUST** — Todo input de `ideas/` se trata como no confiable: se escanea por inyección de instrucciones y secretos antes de procesarse.
+- **MUST** — Unicode invisible (bidi override, zero-width, variation selectors) y secuencias ANSI en `ideas/` se neutralizan con `scripts/sanitize.mjs` antes de que el agente lea el contenido — determinista, no juicio del LLM (mismo criterio que `scripts/discovery-audit.mjs`).
 - **PROHIBITED** — Dependencias npm. Solo builtins de node.
 - **PROHIBITED** — Secretos en artefactos. Se referencian como variable de entorno.
 - **PROHIBITED** — Comodines en la allowlist de Bash. Solo rutas exactas.

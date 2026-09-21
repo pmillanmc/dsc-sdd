@@ -1,75 +1,145 @@
 ---
-description: Aplica un cambio acotado sobre un artefacto aprobado, sin re-correr toda la cadena.
+description: Punto de entrada para cambiar algo ya generado. Decide si conviene ajustar o regenerar, y lo ejecuta.
 ---
 
 # /dsc-change
 
-Para ajustes chicos: corregir un criterio de aceptación, precisar una restricción, agregar un
-caso al alcance. Evita pagar el ciclo completo por un cambio menor.
+La puerta de entrada cuando algo ya generado tiene que cambiar. No asume que la persona sepa qué
+artefacto tocar: eso es lo que este comando averigua.
 
-Tiene un techo explícito. Sin ese techo se convierte en la puerta de atrás que esquiva toda la
-gobernanza.
+Hay **dos caminos**, y elegir el equivocado es el problema real. Parchear un cambio grande deja
+artefactos que se contradicen entre sí; regenerar por un cambio chico paga retrabajo de más.
 
-## Paso 1 — ¿Entra en el techo?
+## Paso 1 — Entender qué quiere cambiar
 
-`/dsc-change` **solo** aplica si el cambio:
-
-- Toca **un solo artefacto**
-- **No** cambia el alcance del release ni del roadmap
-- **No** agrega, quita ni renombra usuarios, capacidades, épicas o features
-- **No** invalida artefactos aguas abajo más allá del propio
-
-Si se pasa de ahí, decilo y derivá:
+Preguntá en lenguaje de negocio. **No pidas nombres de artefactos ni IDs.**
 
 ```
-Lo que querés cambiar no entra en un ajuste acotado: mover EP003 de Q2 a Q1
-cambia la planificación, y eso afecta el release y las features que ya se
-derivaron de él.
-
-Corresponde regenerar el roadmap: /dsc-roadmap
-Antes, mirá qué cuesta: /dsc-impact roadmap
+¿Qué necesitás cambiar?
 ```
 
-Es el mismo criterio que `/sdd-fix` en desarrollo: si el fix crece, se promueve a feature.
+Dejalo hablar. Si lo que dice es ambiguo, preguntá una cosa por vez hasta poder contestar dos
+preguntas: **qué se quiere que diga ahora** y **qué dice hoy**.
 
-## Paso 2 — Mostrar el impacto
+## Paso 2 — Mapear a la cadena
 
-Aunque sea chico, corré primero:
+Con eso, identificá qué artefactos tocan el pedido. Leé solo lo necesario: consultá
+`proyectos/<slug>/metrics/workflow-status.json` para saber qué existe y en qué estado, y de ahí los
+artefactos concretos.
+
+Buscá el punto **más alto** de la cadena que el cambio afecta. No el más obvio: el más alto. Un
+pedido que suena a "cambiar dos features" muchas veces empieza en una capacidad del roadmap.
+
+## Paso 3 — Clasificar: ¿contradice o precisa?
+
+Esta es la pregunta que decide, y no es cuántos artefactos toca:
+
+| | Significa | Camino |
+|---|---|---|
+| **Precisa o completa** | El antecesor sigue siendo verdad. El cambio agrega detalle que no estaba, o lo aclara | **Ajustar** |
+| **Contradice** | El antecesor pasa a decir algo falso | **Regenerar** desde ese antecesor |
+
+El criterio es la trazabilidad, no el volumen. Cambiar el canal de notificación de mail a WhatsApp
+toca dos features —poco volumen— pero **contradice** la capacidad del roadmap. Parchear las dos
+features deja un roadmap que dice mail y features que dicen WhatsApp: en un mes nadie sabe cuál manda.
+
+**Tercer nivel.** Si el cambio contradice la **iniciativa** —cambió el objetivo de negocio, no el
+cómo— ni regenerar la visión alcanza. Decilo derecho: *"esto ya no es el mismo proyecto"*, y ofrecé
+reabrir la iniciativa o arrancar uno nuevo con `/dsc-new`.
+
+## Paso 4 — Mostrar las dos opciones con su costo real
+
+El costo no lo estimes: sacalo del script.
 
 ```bash
 node scripts/impact.mjs <slug> <etapa>[/<item>]
 ```
 
-Si el artefacto está aprobado, cambiarlo **lo devuelve a revisión** y puede marcar descendientes
-como obsoletos. Decilo antes de tocar nada y pedí confirmación.
+Devuelve los artefactos que quedarían obsoletos y **avisa cuáles tienen trabajo hecho a mano**
+(`version > 1`), que es lo que se pierde al regenerar. Presentá las dos opciones y recomendá una:
 
-## Paso 3 — Aplicar
+```
+Eso contradice la capacidad BC02 del roadmap, que dice mail.
+Toca: EP002, R1, F005, F006 y sus 2 estimaciones.
 
-- Editá **solo** lo que se pidió. No aproveches para mejorar otras partes: eso rompe la
-  trazabilidad entre el feedback y el cambio.
-- Incrementá la versión en el frontmatter.
-- El artefacto vuelve a `IN_REVIEW`: el cambio no está firmado por nadie.
+  A · Regenerar desde el roadmap
+      /dsc-roadmap → /dsc-review → /dsc-approve, y de ahí abajo
+      5 artefactos se rehacen. La trazabilidad queda intacta.
+      4 comandos, ninguna edición a mano.
 
-## Paso 4 — Registrar
+  B · Ajustar F005 y F006
+      2 ediciones, 2 estimaciones obsoletas, 2 entregas bloqueadas.
+      El roadmap sigue diciendo mail: queda desalineado para siempre.
+      8 comandos, 2 ediciones a mano.
 
-Un cambio sobre algo aprobado **siempre** se registra. Invocá `/dsc-log` inmediatamente después.
+Recomiendo A: el roadmap ya no dice la verdad, y parchear features sobre
+un roadmap desactualizado es lo que hace que después nadie entienda por
+qué la feature dice una cosa y la épica otra.
+
+Ojo: F005 está en v2, o sea que alguien la trabajó a mano después de
+generarla. Eso se pierde al regenerar — queda en
+outputs/history/feature/F005/v2.md si hay que recuperarlo.
+
+¿A o B?
+```
+
+**Recomendá, no decidas.** El techo no lo pone el modelo: el costo queda a la vista y elige la
+persona. Si elige el camino que no recomendaste, seguí sin discutir — pero registralo con `/dsc-log`.
+
+## Paso 5 — Ejecutar
+
+### Camino A — regenerar
+
+Corré el comando de la etapa desde la que se regenera. El gate de prerequisito
+(`contracts/command-anatomy.md`) ya contempla que el artefacto esté `APPROVED`: pregunta si
+regenerar y avisa que dispara la cascada `STALE`. No hay nada especial que hacer.
+
+De ahí para abajo, la cadena de siempre: cada etapa se regenera, se revisa y se firma.
+
+### Camino B — ajustar
+
+En este orden exacto:
+
+```bash
+node scripts/reabrir.mjs <slug> <etapa>[/<item>] --motivo "<texto>" --by "<nombre>"
+```
+
+Eso pasa el artefacto a `IN_REVIEW`, sube la versión, marca obsoletos a sus descendientes y emite
+el evento. **Recién después se edita el documento.** Al revés, el artefacto queda en `APPROVED` con
+contenido que nadie firmó — que es exactamente el problema que este comando existe para evitar.
+
+Después:
+
+1. Editá **solo** lo que se pidió. No aproveches para mejorar otras partes: rompe la trazabilidad
+   entre el pedido y el cambio.
+2. `/dsc-review`
+3. `/dsc-approve` con los roles que pida `config/review-policy.yaml`
+4. `/dsc-log` con el motivo
+
+Si `reabrir.mjs` lista más artefactos obsoletos de los que esperabas, **paralo y volvé al paso 4**:
+el cambio era más grande de lo que parecía y probablemente correspondía regenerar.
 
 ## Cierre
 
-```
-Ajustado F001 a v2: se precisó el criterio de aceptación sobre diferencias
-de remito.
+Terminá con el estado real y el comando literal que sigue:
 
-Volvió a estado "en revisión" — necesita firmarse de nuevo.
+```
+F005 quedó en v2 y volvió a "en revisión" — nadie firmó esta versión.
 Su estimación quedó obsoleta.
 
-Próximo paso: /dsc-log, después /dsc-review.
+F005 ya estaba entregada a desarrollo: quedó marcada para reenvío, y el
+handoff está bloqueado hasta que se vuelva a firmar. Avisale al equipo
+que el brief que tienen cambió.
+
+Próximo paso: /dsc-review
 ```
+
+Si la feature estaba `HANDED_OFF`, **decilo siempre**. Hay gente construyendo sobre eso y el modelo
+no puede avisarles: solo puede avisarte a vos.
 
 ## Reglas
 
-- Nunca apliques un cambio sin confirmación explícita.
-- Nunca dejes el artefacto en `APPROVED` después de cambiarlo: nadie firmó esa versión.
-- Si el usuario insiste en usar `/dsc-change` para algo que excede el techo, explicá una vez por
-  qué no corresponde y, si lo reafirma, derivá igual al comando correcto: el techo existe para
-  que la cadena siga siendo confiable, no para discutir.
+- Nunca edites un artefacto aprobado sin correr `reabrir.mjs` primero.
+- Nunca dejes un artefacto en `APPROVED` después de cambiarlo.
+- El costo sale de `impact.mjs`, no de tu criterio.
+- Si el pedido contradice la iniciativa, decilo: no lo acomodes cambiando cosas de abajo.

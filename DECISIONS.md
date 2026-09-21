@@ -18,6 +18,9 @@ Lo escribe `/dsc-log`. Los IDs se reservan desde `registry/ids.yaml`.
 | DEC-007 | Los contadores de ID pasan de `products` a `proyectos`, con migración | Técnica | ACTIVE | 2026-08-14 |
 | DEC-008 | Las dependencias entre épicas se declaran en una columna de la tabla del roadmap | Producto | ACTIVE | 2026-08-28 |
 | DEC-009 | `started_at` se persiste en el estado, no solo como evento | Proceso | ACTIVE | 2026-08-28 |
+| DEC-010 | Cambiar algo aprobado: dos caminos y un criterio — contradice o precisa | Producto | ACTIVE | 2026-08-31 |
+| DEC-011 | Saneamiento determinista de Unicode invisible y ANSI en `ideas/` | Técnica | ACTIVE | 2026-09-15 |
+| DEC-012 | Expansión del saneamiento Unicode: cinco categorías invisibles nuevas | Técnica | ACTIVE | 2026-09-21 |
 
 ---
 
@@ -691,3 +694,268 @@ Ninguno sobre lo existente. El audit devuelve los mismos 0 errores y 14 avisos �
 emite nada sobre `proyecto-1`, que no tiene `started_at` en ninguna etapa— y el smoke pasa los
 dieciocho pasos. En `proyecto-1` la cronología muestra las fechas de aprobación que ya existían y
 deja el inicio vacío, sin inventarlo.
+
+---
+
+## DEC-010
+
+**Fecha:** 2026-08-31
+**Tipo:** Producto
+**Estado:** ACTIVE
+**Responsable:** Patricio Millán
+**Proyecto:** global
+**command_origin:** fix de cambios sobre discovery ya generado
+
+### Título
+
+Cambiar algo aprobado se resuelve con dos caminos y un solo criterio: contradice o precisa
+
+### Gap o motivo
+
+`/dsc-change` existía pero era la puerta de atrás. Declaraba un techo de cuatro condiciones que
+evaluaba el agente con criterio propio, y no gestionaba ninguna de las cinco cosas que un cambio
+sobre algo firmado tiene que mover. Grepeado, el comando no mencionaba `hash`, `claimed_by`,
+`emitirEvento`, `ARTIFACT_UPDATED`, `audit` ni `marcarStale`: cero de seis.
+
+El resultado está en los datos. En `proyecto-1`, F003 a F008 figuran `APPROVED` en `version: 1` con
+el contenido cambiado. Si hubieran pasado por el comando estarían en v2. Se editaron a mano, sin
+comando, y quedaron aprobadas con contenido que nadie firmó. Nadie se enteró por meses: el chequeo
+12 lo reporta como aviso y nada lo mostraba.
+
+Al medir qué faltaba realmente, apareció que casi todo ya estaba: `approve.mjs` ya llama a
+`marcarStale` y recalcula el hash al firmar, `habilitaSiguiente` ya bloquea aguas abajo,
+`outputs/history/` ya archiva cada versión, el chequeo 12 ya saltea lo que no está `APPROVED`, y el
+gate de `contracts/command-anatomy.md` ya contempla regenerar un artefacto aprobado. **Faltaba una
+sola pieza: la transición de `APPROVED` a `IN_REVIEW`.**
+
+### Alternativas consideradas
+
+1. Techo computable que rechaza el cambio cuando la cascada excede al propio ítem, más un script de
+   dos fases con `--check` y `--apply`.
+2. Nada de código: que `/dsc-status` muestre el chequeo 12 y que el comando derive al ciclo
+   `review → approve` que ya existe.
+3. Un script mínimo que hace solo la transición, más un intake que clasifica entre ajustar y
+   regenerar.
+
+### Por qué se descartaron
+
+La 1 era sobre-ingeniería y rechazaba en vez de guiar. El techo sobra: si la transición es honesta,
+el costo se hace evidente solo —el subárbol va a `STALE` y nada avanza—, así que el mecanismo ya
+castiga bien la elección equivocada. Le estaba agregando política donde alcanzaba la mecánica. Y
+exigía que la persona ya supiera qué artefacto tocar, que es justo lo que no sabe.
+
+La 2 deja el estado mintiendo entre la edición y la re-firma: el artefacto dice `APPROVED` y los
+comandos de abajo avanzan igual. Cambia una garantía por un aviso.
+
+### Decisión tomada
+
+1. **Dos caminos, no uno con techo.** `/dsc-change` es el punto de entrada que pregunta qué se
+   quiere cambiar en lenguaje de negocio, mapea a la cadena, y decide entre **ajustar** y
+   **regenerar**. Regenerar deja de ser el castigo por pasarse del techo y pasa a ser la opción
+   recomendada cuando el cambio es grande: son cuatro comandos, contra parchear veinte artefactos.
+2. **Un solo criterio: ¿contradice a un antecesor, o lo precisa?** Contradice → regenerar desde ese
+   antecesor. Precisa → ajustar. No es volumen de artefactos: cambiar el canal de notificación toca
+   dos features pero contradice una capacidad del roadmap, y parchear abajo deja al roadmap
+   mintiendo para siempre. Es la trazabilidad lo que decide.
+3. **Tercer nivel explícito.** Si el cambio contradice la iniciativa, ni regenerar la visión
+   alcanza: se dice que ya no es el mismo proyecto.
+4. **`scripts/reabrir.mjs` hace solo la transición**, y se corre **antes** de editar: versión +1,
+   `IN_REVIEW`, limpia firmas, cascada `STALE`, emite `ARTIFACT_UPDATED` con `was_approved`. No
+   edita el documento: eso es criterio. Después sigue el ciclo de siempre.
+5. **El hash no se toca.** Sigue siendo el de la versión firmada. Como el chequeo 12 saltea lo que
+   no está `APPROVED`, el aviso se apaga solo, y `approve.mjs` recalcula el hash al volver a firmar.
+   Todo el problema de los seis avisos era que nadie movía el estado.
+6. **El costo lo calcula `impact.mjs`, no el agente.** Y avisa además qué artefactos tienen
+   `version > 1`, que es el proxy exacto de "acá hubo trabajo humano" y es lo que se pierde al
+   regenerar.
+7. **Re-firmar no pisa una entrega.** `approve.mjs` conserva `HANDED_OFF` y agrega
+   `redelivery_pending`. Pisarlo a `APPROVED` borraba el único dato que dice que hay código
+   construyéndose sobre esa feature, y con eso se caía la guarda de `handoff.mjs`.
+8. **`rutaArtefacto` se movió a `lib/store.mjs`.** Estaba duplicada identica en `approve.mjs` y
+   `restore.mjs`, y `reabrir.mjs` habría sido la tercera copia.
+
+### Motivo
+
+El problema real no era la falta de un comando: era que el camino correcto no existía como
+transición y que el camino grande no estaba ofrecido. Una persona que quiere cambiar algo no sabe
+qué artefacto tocar, y si el modelo le pide que lo sepa, edita el archivo a mano. Eso es lo que
+pasó seis veces.
+
+Se descartó explícitamente todo lo que no hacía falta para esto: el techo computable, las dos fases,
+versionar el brief, `/sdd-resync` y el E2E entre repos. Son para el caso de una feature en
+construcción del otro lado del borde, que es coordinación humana y no se resuelve con un comando.
+
+### Artefactos modificados
+
+`scripts/reabrir.mjs` (nuevo), `scripts/approve.mjs`, `scripts/impact.mjs`, `scripts/restore.mjs`,
+`scripts/smoke.mjs`, `lib/store.mjs`, `.claude/commands/dsc-change.md`,
+`.claude/commands/dsc-status.md`, `.claude/commands/dsc-impact.md`, `CLAUDE.md`.
+
+### Impacto en la cadena
+
+Ninguno sobre lo existente. El audit sigue en 0 errores y 14 avisos, y el smoke pasa 21 pasos con
+tres nuevos: que reabrir devuelva a revisión y **apague** el aviso del chequeo 12, que re-firmar
+conserve la entrega, y que `approve.mjs` se niegue sobre algo aprobado derivando a `reabrir`.
+
+Los seis avisos del chequeo 12 en `proyecto-1` siguen ahí a propósito: son reales. Se apagan cuando
+esas features se reabran y se vuelvan a firmar, o se restauren.
+## DEC-011
+
+**Fecha:** 2026-09-15
+**Tipo:** Técnica
+**Estado:** ACTIVE
+**Responsable:** Kevin Belmonte (Proguide)
+**Proyecto:** global
+**command_origin:** agregado de saneamiento Unicode/ANSI (SEC-02/SEC-03, evidencia ISO 42001)
+
+### Título
+
+Saneamiento determinista de Unicode invisible y ANSI en `ideas/`
+
+### Gap o motivo
+
+El Paso 1 de `/dsc-refine` ya le pedía al agente detectar "texto invisible" como parte del check
+de inyección de instrucciones — pero un carácter literalmente invisible en el contexto del LLM es,
+por definición, el caso que un LLM tiene más chances de no ver. Ningún script lo verificaba: el
+único mecanismo determinista existente (`scripts/discovery-audit.mjs`, chequeo de patrones de
+secreto) audita artefactos ya escritos, no el contenido crudo de `ideas/` antes de leerse.
+
+No es un gap nuevo del Discovery Model en particular: es el mismo caso que ya se resolvió del lado
+`sdd-model` (equivalente SEC-02/SEC-03 allí, sobre `drafts/`). `ideas/` es exactamente el mismo tipo
+de input no confiable — sale de mails, minutas y documentos de terceros (constitution.md, sección
+Seguridad) — así que se porta la misma lógica en vez de reinventarla.
+
+### Alternativas consideradas
+
+1. Ampliar el texto del Paso 1 para que el agente preste más atención a caracteres invisibles.
+2. Sumarlo como chequeo 18 de `scripts/discovery-audit.mjs`.
+3. Un script nuevo (`lib/sanitize.mjs` + `scripts/sanitize.mjs`) que corre como paso previo al
+   check de seguridad de `/dsc-refine`, sobre `ideas/` antes de que el agente la lea.
+
+### Por qué se descartaron
+
+La 1 no arregla nada verificable: le pide al LLM que "vea mejor" exactamente lo que por
+construcción no ve — es la misma clase de solución que `constitution.md` ya rechaza para todo lo
+determinista.
+
+La 2 audita en el momento equivocado. `discovery-audit.mjs` corre sobre artefactos ya escritos
+(`iniciativa.md`, `visión.md`, etc.), no sobre `ideas/` antes de que el agente la procese. Para
+cuando el chequeo 18 corriera, el agente ya habría leído el contenido crudo.
+
+### Decisión tomada
+
+1. **`lib/sanitize.mjs`** — `sanearUnicode()`, `sanearAnsi()`, `sanear()`. Remueve bidi
+   override/isolate, zero-width, variation selectors, tag characters y control C0/C1 (salvo
+   `\t\n\r`); remueve secuencias de escape ANSI (CSI/OSC). Cero dependencias, igual que el resto
+   del modelo. El orden importa y queda documentado en el propio módulo: ANSI corre antes que
+   Unicode, porque una secuencia ANSI empieza con un byte de control (ESC/BEL) que el paso de
+   Unicode también removería, dejando el resto de la secuencia como texto visible en vez de
+   neutralizarla.
+2. **`scripts/sanitize.mjs`** — CLI. `<slug> [--write] [--json]` sobre `proyectos/<slug>/ideas/`,
+   `--path <ruta>` para una ruta explícita, o `-` para filtrar por stdin sin tocar disco.
+3. **`/dsc-refine` corre `node scripts/sanitize.mjs <slug> --write` como Paso 1a**, antes del check
+   de inyección/secretos existente. No lo reemplaza — ese sigue siendo juicio del agente, ahora
+   sobre texto ya limpio.
+4. **`constitution.md`** suma un MUST explícito junto al de input no confiable, así el saneamiento
+   determinista queda como principio no negociable y no solo como detalle de implementación de un
+   comando.
+
+### Motivo
+
+Determinismo sobre juicio del LLM para todo lo mecánicamente verificable es el pilar #7 del
+modelo (`scripts/discovery-audit.mjs`, `CLAUDE.md` sección Determinismo). Un carácter invisible es
+el caso de libro de texto de esa regla: pedirle al agente que lo note es exactamente la clase de
+"confiar en que el LLM se dé cuenta" que el modelo evita en todo lo demás.
+
+### Artefactos modificados
+
+`lib/sanitize.mjs` (nuevo), `scripts/sanitize.mjs` (nuevo), `.claude/commands/dsc-refine.md`,
+`constitution.md`.
+
+### Impacto en la cadena
+
+Ninguno sobre lo existente. `node scripts/discovery-audit.mjs` sigue en 17 chequeos, 0 errores, 0
+avisos (repo sin proyectos reales committeados). `npm test` (`scripts/smoke.mjs`) sigue pasando
+los dieciocho pasos sin cambios — el saneamiento no está enganchado a ningún chequeo determinista
+todavía, es un paso previo de `/dsc-refine`, así que no hay caso nuevo que agregar al smoke sin
+antes decidir si merece su propio chequeo en `discovery-audit.mjs` (quedó fuera de alcance de esta
+decisión: ver "Alternativas consideradas", opción 2).
+
+---
+
+## DEC-012
+
+**Fecha:** 2026-09-21
+**Tipo:** Técnica
+**Estado:** ACTIVE
+**Responsable:** Kevin Belmonte
+**Rol:** Proguide
+**Proyecto:** global
+**command_origin:** expansión de cobertura Unicode a lib/sanitize.mjs (continuación de DEC-011)
+
+### Título
+
+Expansión del saneamiento Unicode: cinco categorías invisibles nuevas
+
+### Gap o motivo
+
+`lib/sanitize.mjs` quedó incompleta en la primera pasada (DEC-011). La cobertura de Unicode invisible
+removía bidi override/isolate, zero-width, variation selectors, tag characters y control C0/C1,
+pero faltaban cinco categorías adicionales también invisibles y con capacidad de ocultar texto:
+
+1. **Soft hyphen (SHY, U+00AD)** — inserción manual de guiones suaves en palabras
+2. **Rellenos Hangul (U+115F, U+1160, U+3164, U+FFA0)** — caracteres de espaciado silencioso en texto coreano
+3. **Marcas direccionales (LRM/RLM/ALM: U+200E, U+200F, U+061C)** — controles de dirección de lectura
+4. **Combining grapheme joiner (CGJ, U+034F)** — modificador de renderización de caracteres
+5. **Braille blank (U+2800)** — punto braille vacío, literalmente un espacio que no se ve como tal
+
+Ninguna estaba en el regex de `sanearUnicode()` de DEC-011, aunque todas coinciden con la
+amenaza que esa decisión identificó: caracteres que un LLM tiene altas chances de no detectar
+visualmente cuando lee el contenido bruto.
+
+### Alternativas consideradas
+
+1. Ninguna evaluada.
+
+### Por qué se descartaron
+
+No hay una forma alternativa razonable de cubrirlas. O se agregan al regex de `sanearUnicode()`,
+o quedan sin sanear. Dejarlas sin sanear reabre el riesgo que motivó DEC-011: son exactamente la
+clase de caracteres invisibles que el modelo buscó eliminar, solo que se quedaron fuera en la
+primera pasada.
+
+### Decisión tomada
+
+Se agregaron cinco categorías nuevas al array `CATEGORIAS` en `lib/sanitize.mjs`:
+
+- 'marca direccional (LRM/RLM/ALM)' → captura U+200E, U+200F, U+061C
+- 'soft hyphen' → captura U+00AD
+- 'combining grapheme joiner' → captura U+034F
+- 'relleno hangul' → captura U+115F, U+1160, U+3164, U+FFA0
+- 'braille blank' → captura U+2800
+
+El regex de `sanearUnicode()` se expandió sin cambiar el orden de los pasos ni la estructura del
+resto del saneamiento. Verificado con:
+
+- `npm test`: 19/19 pasos del smoke completo, todos verdes
+- Prueba manual: se pasó cada una de las cinco categorías nuevas por `lib/sanitize.mjs`,
+  verificado que detectan correctamente y que `sanear()` las remueve sin dejar residuos
+
+### Motivo
+
+Completar la cobertura de Unicode invisible iniciada en DEC-011. El riesgo de que un LLM no
+detecte estos caracteres es el mismo. DEC-011 dejó la puerta abierta expresamente —en su sección
+"Impacto en la cadena" menciona: "no hay caso nuevo que agregar al smoke sin antes decidir si
+merece su propio chequeo en `discovery-audit.mjs`" — y esto no agrega un chequeo sino que amplía
+la lógica existente que funcionó en los dieciocho pasos.
+
+### Artefactos modificados
+
+`lib/sanitize.mjs` — expansión del array `CATEGORIAS` (5 nuevas) y del regex de `sanearUnicode()`
+(5 patrones nuevos).
+
+### Impacto en la cadena
+
+Ninguno. Es un cambio de herramienta interna (`lib/sanitize.mjs`), no toca specs/ ni proyectos/.
+No hace falta correr `/dsc-impact` ni invalidar artefactos de negocio. El smoke test sigue pasando
+en su totalidad (19/19) sin casos nuevos que agregar.

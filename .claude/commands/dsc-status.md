@@ -46,6 +46,27 @@ reportalas: son la causa más común de que algo esté esperando sin que se vea 
 EP004 no puede terminar hasta que salga EP003, que está en Q2.
 ```
 
+**Artefactos cambiados después de firmarse.** Leé el chequeo 12 del mismo archivo, tampoco lo
+recalcules. Marca artefactos que figuran `APPROVED` pero cuyo contenido ya no coincide con lo que
+alguien firmó: se editaron sin pasar por `/dsc-change`.
+
+Es el aviso más fácil de no ver del modelo y el que más caro sale. Reportalo siempre, con la
+consecuencia concreta:
+
+```
+F003 a F008 cambiaron después de firmarse. Figuran aprobadas, pero lo que
+dicen hoy no es lo que firmó nadie.
+
+Las 8 están entregadas a desarrollo, así que su reenvío está bloqueado
+hasta volver a revisarlas y firmarlas.
+
+Para cada una: /dsc-review, después /dsc-approve.
+Si el cambio no era deseado: /dsc-restore.
+```
+
+Si además la feature está `HANDED_OFF` o tiene `redelivery_pending`, decilo: hay gente construyendo
+sobre esa spec y el modelo no puede avisarles.
+
 ## Paso 3 — Reportar
 
 Formato, en lenguaje de negocio:

@@ -30,7 +30,8 @@ Ninguna se borra: se siguen pudiendo leer y comparar. Pero no vas a poder
 avanzar a desarrollo hasta regenerarlas y volver a aprobarlas.
 
 Si el cambio es chico y no toca usuarios, objetivos ni capacidades, puede
-convenir /dsc-change en vez de regenerar la visión entera.
+convenir ajustarla en vez de regenerar la visión entera. /dsc-change decide cuál
+de los dos caminos conviene y lo ejecuta.
 ```
 
 Si no hay nada aprobado aguas abajo, decilo claro: **el cambio no cuesta retrabajo**.

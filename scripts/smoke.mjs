@@ -13,10 +13,11 @@
  */
 
 import { join } from 'node:path';
-import { existsSync, mkdirSync, writeFileSync, rmSync, copyFileSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, rmSync, copyFileSync, readFileSync, appendFileSync, readdirSync, unlinkSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { ROOT, proyectoDir, readYaml, writeYaml, reservarIds, leerEventos } from '../lib/store.mjs';
+import { ROOT, proyectoDir, readYaml, writeYaml, reservarIds, leerEventos, sha256 } from '../lib/store.mjs';
 import { marcarInicio } from '../lib/cascade.mjs';
+import { sanear } from '../lib/sanitize.mjs';
 
 const SLUG = 'smoke-test-descartable';
 const REG = ['ids', 'proyectos', 'capabilities', 'features'];
@@ -91,6 +92,38 @@ function main() {
     correr('new-proyecto.mjs', 'Smoke Test Descartable', '--owner', 'smoke');
     debe(existsSync(join(P, 'metrics', 'workflow-status.json')), 'no se creo el estado');
     return SLUG;
+  });
+
+  paso('sanitize limpia unicode invisible y ANSI en ideas/', () => {
+    const sucio = join(P, 'ideas', 'minuta-sucia.md');
+    const visible = 'Recepcion tarda 45 minutos.\nSiguiente linea.';
+    // RLO + ZWSP + CSI: el caso que un LLM no ve, y el orden ANSI-antes-de-Unicode.
+    const payload = `\u202ERecepcion\u200B tarda 45 minutos.\n\x1B[31mSiguiente linea.\x1B[0m`;
+    writeFileSync(sucio, payload, 'utf8');
+    try {
+      const lib = sanear(payload);
+      debe(lib.limpio === visible, `lib dejo ${JSON.stringify(lib.limpio)}`);
+      debe(lib.cantidadAnsi === 2, `conto ${lib.cantidadAnsi} ANSI, esperaba 2`);
+      debe(lib.hallazgosUnicode.some((h) => h.nombre.includes('bidi')), 'no reporto bidi');
+      debe(lib.hallazgosUnicode.some((h) => h.nombre === 'zero-width'), 'no reporto zero-width');
+      debe(!lib.limpio.includes('[31m'), 'el orden ANSI/Unicode dejo basura visible');
+
+      const reporte = JSON.parse(correr('sanitize.mjs', SLUG, '--json'));
+      const r = reporte.archivos.find((a) => a.archivo.endsWith('minuta-sucia.md'));
+      debe(Boolean(r?.tuvoHallazgos), 'el CLI no reporto hallazgos');
+      debe(r.escrito === false, 'escribio el archivo sin --write');
+      debe(readFileSync(sucio, 'utf8') === payload, 'modifico ideas/ sin --write');
+
+      correr('sanitize.mjs', SLUG, '--write');
+      debe(readFileSync(sucio, 'utf8') === visible, '--write no dejo el texto visible intacto');
+
+      const despues = JSON.parse(correr('sanitize.mjs', SLUG, '--json'));
+      const r2 = despues.archivos.find((a) => a.archivo.endsWith('minuta-sucia.md'));
+      debe(!r2?.tuvoHallazgos, 'siguio reportando hallazgos despues de limpiar');
+      return 'detecta, no escribe sin --write, limpia con --write';
+    } finally {
+      try { unlinkSync(sucio); } catch { /* el restore borra el proyecto entero */ }
+    }
   });
 
   paso('escribir la cadena de artefactos', () => {
@@ -245,7 +278,7 @@ function main() {
     try {
       // Un roadmap con ciclo (EP001 <-> EP002) y una referencia rota (EP099).
       writeFileSync(rm, bueno.replace(
-        /\| EP001 \|.*\|\n/,
+        /\| EP001 \|.*\|\r?\n/,
         '| EP001 | Verificar la cadena de punta a punta | BC01 | Must Have | U01 | Q1 | EP002 |\n' +
         '| EP002 | Segunda epica del caso de prueba | BC01 | Must Have | U01 | Q1 | EP001, EP099 |\n'
       ), 'utf8');
@@ -293,6 +326,39 @@ function main() {
     return `progreso ${m.progreso.valor}%, calidad ${m.calidad.indice}/100`;
   });
 
+  paso('el tablero marca las metricas desactualizadas', () => {
+    const sp = join(P, 'metrics', 'workflow-status.json');
+    const antes = readFileSync(sp, 'utf8');
+    /* Se parsea el payload, no se busca la cadena con un regex de ventana: el
+       objeto de un proyecto real pesa varios miles de caracteres y una ventana
+       fija puede leer la marca del proyecto de al lado. */
+    const leerDelTablero = () => {
+      correr('gen-dashboard.mjs');
+      const d = readFileSync(join(ROOT, 'dashboard', 'data.js'), 'utf8');
+      const m = d.match(/window\.DSC_DATA\s*=\s*([\s\S]*);\s*$/);
+      debe(Boolean(m), 'no se pudo leer el payload del tablero');
+      const datos = JSON.parse(m[1]);
+      const p = datos.proyectos.find((x) => (x.proyecto ?? x.slug) === SLUG);
+      debe(Boolean(p), 'el proyecto de prueba no aparece en el tablero');
+      return p.desactualizado === true;
+    };
+    try {
+      correr('gen-metrics.mjs', SLUG);
+      debe(!leerDelTablero(), 'marco como viejas unas metricas recien calculadas');
+
+      // El proyecto se mueve despues del calculo: es el caso real que hay que avisar.
+      const s = JSON.parse(readFileSync(sp, 'utf8'));
+      s.updated = new Date(Date.now() + 60_000).toISOString();
+      writeFileSync(sp, JSON.stringify(s, null, 2), 'utf8');
+      debe(leerDelTablero(), 'no marco como viejas unas metricas anteriores al ultimo cambio');
+
+      return 'detecta viejas y no marca frescas';
+    } finally {
+      writeFileSync(sp, antes, 'utf8');
+      correr('gen-metrics.mjs', SLUG);
+    }
+  });
+
   paso('generar el tablero', () => {
     correr('gen-dashboard.mjs');
     const d = readFileSync(join(ROOT, 'dashboard', 'data.js'), 'utf8');
@@ -323,6 +389,73 @@ function main() {
     }
     debe(!b.includes('BLOQUE DISCOVERY'), 'el bloque Discovery se exporto y no deberia');
     return 'las 6 secciones, sin el bloque Discovery';
+  });
+
+  paso('reabrir devuelve a revision y apaga el aviso de hash', () => {
+    const dir = join(P, 'outputs', 'features');
+    const archivo = join(dir, readdirSync(dir).find((n) => n.startsWith('F001-')));
+    const sp = join(P, 'metrics', 'workflow-status.json');
+
+    // El chequeo 12 compara contra el hash que dejo la firma. La cadena del smoke
+    // se estampa a mano y no lo tiene, asi que hay que reconstruir la precondicion:
+    // un artefacto realmente aprobado siempre lo lleva (lo escribe approve.mjs).
+    const s0 = JSON.parse(readFileSync(sp, 'utf8'));
+    s0.stages.features.items.F001.status = 'APPROVED';
+    s0.stages.features.items.F001.hash = sha256(readFileSync(archivo, 'utf8'));
+    writeFileSync(sp, JSON.stringify(s0, null, 2), 'utf8');
+
+    // Edicion a mano sobre algo firmado: es lo que le paso a seis features reales.
+    appendFileSync(archivo, '\nAjuste hecho a mano despues de la firma.\n', 'utf8');
+    let antes = '';
+    try { antes = correr('discovery-audit.mjs', SLUG); }
+    catch (err) { antes = String(err.stdout ?? ''); }
+    debe(/\[12\]/.test(antes), 'el chequeo 12 no detecto la edicion a mano');
+
+    const out = correr('reabrir.mjs', SLUG, 'features/F001', '--motivo', 'Ajuste del criterio', '--by', 'smoke');
+    debe(/REABIERTO/.test(out), 'reabrir no reporto la transicion');
+
+    const s = JSON.parse(readFileSync(join(P, 'metrics', 'workflow-status.json'), 'utf8'));
+    const f = s.stages.features.items.F001;
+    debe(f.status === 'IN_REVIEW', `quedo en ${f.status} y no en IN_REVIEW`);
+    debe(f.version === 2, `quedo en v${f.version} y no en v2`);
+    debe(f.reopened_by === 'smoke' && Boolean(f.reopened_reason), 'no registro autor y motivo');
+    debe(!f.approved_at, 'quedo con fecha de aprobacion sobre una version sin firmar');
+
+    const ev = leerEventos(SLUG).filter((e) => e.event === 'ARTIFACT_UPDATED' && e.was_approved);
+    debe(ev.length === 1, 'no se emitio ARTIFACT_UPDATED con was_approved');
+
+    // La propiedad elegante: el chequeo 12 saltea lo que no esta APPROVED, asi que
+    // el aviso se apaga solo. No hay que tocar el hash.
+    let despues = '';
+    try { despues = correr('discovery-audit.mjs', SLUG); }
+    catch (err) { despues = String(err.stdout ?? ''); }
+    debe(!/\[12\]/.test(despues), 'el aviso del chequeo 12 sigue despues de reabrir');
+
+    return 'v2, IN_REVIEW, aviso 12 apagado';
+  });
+
+  paso('re-firmar no pisa la entrega', () => {
+    for (const rol of ['Product Owner', 'QA']) {
+      correr('approve.mjs', SLUG, 'features/F001', '--as', rol, '--by', 'smoke');
+    }
+    const reg = readYaml(join(ROOT, 'registry', 'features.yaml'));
+    const f = (reg.features ?? []).find((x) => x.id === 'F001' && x.proyecto === SLUG);
+    debe(f.status === 'HANDED_OFF', `la re-firma dejo el estado en ${f.status} y borro la entrega`);
+    debe(f.redelivery_pending === true, 'no quedo marcada para reenvio');
+    debe(f.version === 2, `el registro quedo en v${f.version}`);
+    return 'HANDED_OFF conservado, reenvio pendiente';
+  });
+
+  paso('approve se niega sobre algo aprobado y deriva a reabrir', () => {
+    let salida = '';
+    try {
+      correr('approve.mjs', SLUG, 'vision', '--as', 'Product Owner', '--by', 'smoke');
+      throw new Error('aprobo dos veces la misma version');
+    } catch (err) {
+      salida = String(err.stdout ?? '') + String(err.stderr ?? '') + err.message;
+    }
+    debe(/reabrir\.mjs/.test(salida), 'no señala reabrir.mjs como camino');
+    return 'deriva al comando correcto';
   });
 
   paso('el gate rechaza una feature XL', () => {

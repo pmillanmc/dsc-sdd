@@ -10,4 +10,4 @@
     "metrics": "node scripts/gen-metrics.mjs",
     "test": "node scripts/smoke.mjs"
   }
-}
+} 

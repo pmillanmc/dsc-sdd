@@ -24,7 +24,7 @@ import { join } from 'node:path';
 import { existsSync, readFileSync, readdirSync, mkdirSync, copyFileSync } from 'node:fs';
 import {
   ROOT, proyectoDir, leerEstado, escribirEstado, emitirEvento,
-  writeAtomic, sha256, readYaml, writeYaml,
+  writeAtomic, sha256, readYaml, writeYaml, rutaArtefacto,
 } from '../lib/store.mjs';
 import {
   rolesRequeridos, leerEntrada, escribirEntrada, marcarStale, etapaInfo,
@@ -35,28 +35,6 @@ function salir(msg) { console.error(msg); process.exit(1); }
 function arg(nombre) {
   const i = process.argv.indexOf(`--${nombre}`);
   return i === -1 ? null : process.argv[i + 1] ?? null;
-}
-
-/**
- * Ruta del artefacto de una etapa. Sin esto no se puede archivar ni hashear.
- * Las features se resuelven por prefijo porque el nombre incluye el slug.
- */
-function resolverRuta(slug, etapa, itemId) {
-  const base = proyectoDir(slug);
-  switch (etapa) {
-    case 'iniciativa': return join(base, 'iniciativa.md');
-    case 'vision':     return join(base, 'outputs', 'vision', 'vision.md');
-    case 'roadmap':    return join(base, 'outputs', 'roadmap', 'roadmap.md');
-    case 'release':    return join(base, 'outputs', 'releases', `${itemId}.md`);
-    case 'estimation': return join(base, 'outputs', 'estimations', `${itemId}.md`);
-    case 'features': {
-      const dir = join(base, 'outputs', 'features');
-      if (!existsSync(dir)) return null;
-      const f = readdirSync(dir).find((n) => n.startsWith(`${itemId}-`));
-      return f ? join(dir, f) : null;
-    }
-    default: return null;
-  }
 }
 
 /** Archiva la version aprobada. Sin git, history/ es la unica red de rollback. */
@@ -90,7 +68,13 @@ function main() {
 
   const entrada = leerEntrada(estado, etapa, itemId);
   if (!entrada) salir(`No hay nada que aprobar en "${referencia}": la etapa no fue generada todavia.`);
-  if (entrada.status === 'APPROVED') salir(`"${referencia}" ya esta aprobado. Para cambiarlo hay que regenerarlo.`);
+  if (entrada.status === 'APPROVED') {
+    salir(
+      `"${referencia}" ya esta aprobado.\n` +
+      `Para cambiarlo, reabrilo primero:  node scripts/reabrir.mjs ${slug} ${referencia} --motivo "..." --by "${quien}"\n` +
+      `Si el cambio contradice a un antecesor, no es un ajuste: regeneralo con el comando de su etapa.`
+    );
+  }
   if (entrada.status === 'STALE') salir(`"${referencia}" esta STALE (${entrada.stale_cause}). Regeneralo antes de aprobar.`);
 
   const { required, optional } = rolesRequeridos(etapa);
@@ -141,7 +125,7 @@ function main() {
   // Los cinco pasos ocurren juntos o no ocurre ninguno: un estado a medias
   // (APPROVED sin archivar, o archivado sin invalidar descendientes) es peor
   // que no haber aprobado.
-  const ruta = resolverRuta(slug, etapa, itemId);
+  const ruta = rutaArtefacto(slug, etapa, itemId);
   if (!ruta || !existsSync(ruta)) {
     salir(`El estado dice que "${referencia}" existe, pero no se encuentra el archivo.\nNo se aprueba nada hasta resolverlo.`);
   }
@@ -191,7 +175,17 @@ function main() {
     const p = join(ROOT, 'registry', 'features.yaml');
     const reg = readYaml(p, { features: [] });
     const f = (reg.features ?? []).find((x) => x.id === itemId && x.proyecto === slug);
-    if (f) { f.status = 'APPROVED'; f.hash = hash; f.version = version; writeYaml(p, reg); }
+    if (f) {
+      // Una feature ya entregada no vuelve a "APPROVED" al re-firmarse: sigue
+      // entregada, y ademas hay que reenviarla. Pisar el estado borraria el
+      // unico dato que dice que existe codigo construyendose sobre esta feature,
+      // y con eso se cae la guarda de handoff.mjs que bloquea la reentrega.
+      if (f.status === 'HANDED_OFF') f.redelivery_pending = true;
+      else f.status = 'APPROVED';
+      f.hash = hash;
+      f.version = version;
+      writeYaml(p, reg);
+    }
   }
 
   console.log(`APROBADO — ${referencia} v${version}\n`);

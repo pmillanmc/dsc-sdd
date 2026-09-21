@@ -82,6 +82,11 @@
   .next { margin-top:16px; padding:12px 14px; border-radius:8px; background:var(--bg); border:1px solid var(--line); }
   .next .lbl { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
   .empty { color:var(--muted); padding:6px 0; }
+  .viejo {
+    color:var(--yellow); font-size:12px; margin:-9px 0 14px;
+    padding:7px 9px; border-radius:6px;
+    border:1px solid var(--yellow); background:var(--bg);
+  }
   .warn { color:var(--yellow); font-size:12.5px; margin-bottom:12px; }
   footer { color:var(--muted); font-size:11.5px; margin-top:26px; line-height:1.6; }
 </style>
@@ -186,6 +191,15 @@
         p.general.iniciativa + ' · ' + p.slug +
         (p.general.owner ? ' · ' + p.general.owner : '') +
         ' · actualizado ' + fecha(p.general.actualizado)));
+
+      /* Metricas viejas: el proyecto se movio despues del ultimo calculo. Se avisa
+         en la tarjeta, no en un pie, porque los numeros de abajo son los viejos. */
+      if (p.desactualizado) {
+        c.appendChild(el('div','viejo',
+          'Métricas desactualizadas: el proyecto se movió el ' + fechaCorta(p.estado_updated) +
+          ' y los números son del ' + fechaCorta(p.generated) +
+          '. Corré /dsc-metrics para recalcular.'));
+      }
 
       var bar = el('div','bar'), fill = document.createElement('i');
       fill.style.width = p.progreso.valor + '%'; bar.appendChild(fill); c.appendChild(bar);
