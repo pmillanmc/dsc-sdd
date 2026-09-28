@@ -31,7 +31,12 @@ const JSON_OUT = flags.has('--json');
 
 const idxPath = argv.indexOf('--path');
 const rutaExplicita = idxPath !== -1 ? argv[idxPath + 1] : null;
-const posicional = argv.filter((a, i) => !a.startsWith('--') && i !== idxPath + 1);
+// Si no hay --path, idxPath es -1: no hay que excluir el indice 0 (el slug).
+const posicional = argv.filter((a, i) => {
+  if (a.startsWith('--')) return false;
+  if (idxPath !== -1 && i === idxPath + 1) return false;
+  return true;
+});
 
 const objetivo = rutaExplicita ?? (posicional[0] ? join(proyectoDir(posicional[0]), 'ideas') : null);
 if (!objetivo) {
@@ -64,14 +69,21 @@ if (!archivos.length) {
   process.exit(1);
 }
 
-const resultados = archivos.map((archivo) => {
-  const crudo = readFileSync(archivo, 'utf8');
-  return analizarArchivo(archivo, crudo, sanear);
-});
+const resultados = archivos
+  .map((archivo) => {
+    const crudo = readFileSync(archivo, 'utf8');
+    return analizarArchivo(archivo, crudo, sanear);
+  })
+  .sort((a, b) => String(a.archivo).localeCompare(String(b.archivo)));
 
-const hallazgos = resultados.flatMap((r) => r.hallazgos);
-const fechas = resultados.flatMap((r) => r.fechas);
-const links = resultados.flatMap((r) => r.links);
+const porArchivoLinea = (a, b) =>
+  String(a.archivo).localeCompare(String(b.archivo))
+  || (Number(a.linea) - Number(b.linea))
+  || String(a.tipo ?? '').localeCompare(String(b.tipo ?? ''));
+
+const hallazgos = resultados.flatMap((r) => r.hallazgos).sort(porArchivoLinea);
+const fechas = resultados.flatMap((r) => r.fechas).sort(porArchivoLinea);
+const links = resultados.flatMap((r) => r.links).sort(porArchivoLinea);
 const conHallazgos = new Set(hallazgos.map((x) => x.archivo));
 
 if (JSON_OUT) {

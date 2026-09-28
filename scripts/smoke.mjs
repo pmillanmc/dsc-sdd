@@ -135,6 +135,119 @@ function main() {
     }
   });
 
+  paso('check-dates-links detecta fechas y links en ideas/', () => {
+    const path = join(P, 'ideas', 'minuta-fechas.md');
+    const clave = 'claveSecreta99xyz';
+    // CRLF a proposito: el script tiene que numerar bien en Windows.
+    const lineas = [
+      'Fecha: 15/10/2026',
+      '',
+      'Imposible: el 31/02/2026 no existe.',
+      'Dia malo: reunion el domingo 15/10/2026.',
+      'Mezcla: el 25/03/2026 y el 03/25/2026.',
+      'Sin anio: firmaron el 15/03 el acuerdo.',
+      `Invisible: reunion el 20/1\u200B0/2026.`,
+      'Relativa: lo vemos manana y en tres dias.',
+      'Compromiso de entrega 01/10/2026.',
+      'Mal formado: [detalle](ejemplo.com/docs)',
+      'Acortado: [corto](https://bit.ly/abc123)',
+      'Interno: [lan](http://192.168.1.10/admin)',
+      'Engano: [google.com](https://evil.example/phish)',
+      `Creds: [privado](https://usuario:${clave}@example.com/ruta)`,
+      'Sin https: http://inseguro.example.com/pagina',
+    ];
+    const payload = lineas.join('\r\n');
+    writeFileSync(path, payload, 'utf8');
+    try {
+      const outJson = correr('check-dates-links.mjs', SLUG, '--json');
+      debe(!outJson.includes(clave), 'la contraseña real aparecio en la salida JSON');
+      const reporte = JSON.parse(outJson);
+      debe(!reporte.archivos.some((a) => /leeme\.md$/i.test(a.archivo)), 'analizo LEEME.md');
+
+      const mios = reporte.hallazgos.filter((h) => h.archivo.endsWith('minuta-fechas.md'));
+      const tipoEn = (tipo, linea) => mios.some((h) => h.tipo === tipo && h.linea === linea);
+      debe(tipoEn('FECHA_IMPOSIBLE', 3), 'no detecto FECHA_IMPOSIBLE en L3');
+      debe(tipoEn('DIA_NO_COINCIDE', 4), 'no detecto DIA_NO_COINCIDE en L4');
+      debe(tipoEn('MEZCLA_FORMATOS', 5), 'no detecto MEZCLA_FORMATOS en L5');
+      debe(tipoEn('SIN_ANIO', 6), 'no detecto SIN_ANIO en L6');
+      debe(tipoEn('FECHA_RELATIVA', 8), 'no detecto FECHA_RELATIVA en L8');
+      debe(tipoEn('ANTERIOR_AL_DOCUMENTO', 9), 'no detecto ANTERIOR_AL_DOCUMENTO en L9');
+      debe(tipoEn('LINK_MAL_FORMADO', 10), 'no detecto LINK_MAL_FORMADO en L10');
+      debe(tipoEn('LINK_ACORTADO', 11), 'no detecto LINK_ACORTADO en L11');
+      debe(tipoEn('LINK_INTERNO', 12), 'no detecto LINK_INTERNO en L12');
+      debe(tipoEn('TEXTO_ENGANOSO', 13), 'no detecto TEXTO_ENGANOSO en L13');
+      debe(tipoEn('CREDENCIALES_EN_LINK', 14), 'no detecto CREDENCIALES_EN_LINK en L14');
+      debe(tipoEn('SIN_HTTPS', 15), 'no detecto SIN_HTTPS en L15');
+      debe(!tipoEn('SIN_HTTPS', 12), 'emitio SIN_HTTPS junto con LINK_INTERNO');
+
+      for (let i = 1; i < mios.length; i++) {
+        debe(mios[i].linea >= mios[i - 1].linea, 'hallazgos no ordenados por linea');
+      }
+
+      const credH = mios.find((h) => h.tipo === 'CREDENCIALES_EN_LINK');
+      debe(credH && credH.mensaje.includes('***:***'), 'creds no tapadas en hallazgos');
+      debe(!credH.mensaje.includes(clave), 'la clave aparecio en el mensaje de credenciales');
+      const credL = reporte.links.find((l) => l.archivo.endsWith('minuta-fechas.md') && l.linea === 14);
+      debe(credL && credL.destino.includes('***:***'), 'creds no tapadas en links');
+      debe(!credL.destino.includes(clave), 'la clave aparecio en links[].destino');
+
+      const fecInv = reporte.fechas.find((f) =>
+        f.archivo.endsWith('minuta-fechas.md') && f.normalizada === '2026-10-20');
+      debe(Boolean(fecInv), 'no reconocio la fecha con unicode invisible (20/10/2026)');
+      debe(reporte.fechas.every((f) => !String(f.renglon).includes('\r')), 'algun renglon trae \\r');
+
+      debe(readFileSync(path, 'utf8') === payload, 'modifico ideas/ (no debe escribir)');
+
+      correr('check-dates-links.mjs', SLUG); // exit 0 si no tira
+      return 'fechas, links, orden, CRLF, creds tapadas, sin escritura';
+    } finally {
+      try { unlinkSync(path); } catch { /* restore */ }
+    }
+  });
+
+  paso('check-dates-links avisa lo que queda fuera de regla', () => {
+    const sinFecha = join(P, 'ideas', 'sin-fecha.md');
+    const txt = join(P, 'ideas', 'notas.txt');
+    writeFileSync(sinFecha, 'Notas sueltas sin cabecera.\nFecha escondida aca no cuenta.\n', 'utf8');
+    writeFileSync(txt, 'Fecha: 01/01/2020\nesto no se analiza\n', 'utf8');
+    try {
+      const reporte = JSON.parse(correr('check-dates-links.mjs', SLUG, '--json'));
+      const hSin = reporte.hallazgos.filter((h) => h.archivo.endsWith('sin-fecha.md'));
+      debe(hSin.some((h) => h.tipo === 'SIN_FECHA_DOCUMENTO'), 'no aviso SIN_FECHA_DOCUMENTO');
+      const hTxt = reporte.hallazgos.filter((h) => h.archivo.endsWith('notas.txt'));
+      debe(hTxt.length === 1 && hTxt[0].tipo === 'FUERA_DE_REGLA', 'notas.txt no dio solo FUERA_DE_REGLA');
+      debe(!reporte.fechas.some((f) => f.archivo.endsWith('notas.txt')), 'analizo el contenido de .txt');
+      const archTxt = reporte.archivos.find((a) => a.archivo.endsWith('notas.txt'));
+      debe(archTxt && archTxt.analizado === false, 'marco .txt como analizado');
+      return 'SIN_FECHA_DOCUMENTO + FUERA_DE_REGLA';
+    } finally {
+      try { unlinkSync(sinFecha); } catch { /* restore */ }
+      try { unlinkSync(txt); } catch { /* restore */ }
+    }
+  });
+
+  paso('check-dates-links no genera ruido en un documento sano', () => {
+    const path = join(P, 'ideas', 'minuta-sana.md');
+    const cuerpo = [
+      'Fecha: 15/10/2026',
+      '',
+      'Nos reunimos el 01/10/2026 para alinear alcance.',
+      'La entrega del hito 1 es el jueves 22/10/2026.',
+      'Referencia: [documentacion del producto](https://example.com/docs/guia).',
+      '',
+    ].join('\n');
+    writeFileSync(path, cuerpo, 'utf8');
+    try {
+      const reporte = JSON.parse(correr('check-dates-links.mjs', SLUG, '--json'));
+      const avisos = reporte.hallazgos.filter((h) =>
+        h.archivo.endsWith('minuta-sana.md') && h.severidad === 'AVISO');
+      debe(avisos.length === 0, `documento sano produjo AVISO: ${avisos.map((a) => a.tipo).join(', ')}`);
+      return 'cero AVISO';
+    } finally {
+      try { unlinkSync(path); } catch { /* restore */ }
+    }
+  });
+
   paso('escribir la cadena de artefactos', () => {
     const f = readFileSync(join(ROOT, 'fixtures', 'cadena.md'), 'utf8');
     const partes = Object.fromEntries(
