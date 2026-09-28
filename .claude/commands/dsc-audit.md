@@ -15,6 +15,23 @@ node scripts/discovery-audit.mjs [<slug>]
 
 Sin proyecto, audita todos.
 
+## Paso 1b — Fechas y links de los documentos de entrada
+```bash
+node scripts/check-dates-links.mjs <slug>
+```
+Uno por cada proyecto auditado. Revisa todos los documentos de `ideas/`. No escribe nada, no
+visita links y no forma parte de `audit-result.json`.
+Si la iniciativa ya está escrita, no repitas hallazgos que ya quedaron resueltos en ella
+(por ejemplo, un plazo que la iniciativa ya fija): mostrá solo lo que todavía no tiene respuesta.
+
+Al traducir (paso 3), mostralo en una sección aparte, **DOCUMENTOS DE ENTRADA**, después de
+bloqueantes y avisos. Nunca es bloqueante. Por cada `AVISO`, la persona decide:
+- si cambia algo ya aprobado (por ejemplo un plazo de la iniciativa) → `/dsc-change`
+- si no → se registra la decisión con `/dsc-log`
+
+Sin Node, este paso no se hace a mano: se informa como no verificado.
+Si no hay hallazgos, no muestres la sección.
+
 ## Paso 2 — Si node no está disponible
 
 El comando falla con "node no se reconoce". Entrás en **modo degradado** y hay que anunciarlo:

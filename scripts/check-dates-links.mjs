@@ -20,7 +20,7 @@
  */
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { basename, dirname, join, relative } from 'node:path';
 import { proyectoDir } from '../lib/store.mjs';
 import { sanear } from '../lib/sanitize.mjs';
 import { analizarArchivo } from '../lib/check-dates-links.mjs';
@@ -100,6 +100,19 @@ if (JSON_OUT) {
   process.exit(0);
 }
 
+/** En salida humana: relativa a ideas/ o a la carpeta de --path. JSON sigue con ruta absoluta. */
+const baseHumana = (() => {
+  try {
+    return statSync(objetivo).isDirectory() ? objetivo : dirname(objetivo);
+  } catch {
+    return objetivo;
+  }
+})();
+const rutaHumana = (abs) => {
+  const rel = relative(baseHumana, abs);
+  return rel && rel !== '' ? rel.replace(/\\/g, '/') : basename(abs);
+};
+
 const resumen =
   `check-dates-links: ${hallazgos.length} hallazgo(s) en ${conHallazgos.size} archivo(s), ` +
   `${fechas.length} fechas y ${links.length} links encontrados`;
@@ -115,7 +128,7 @@ for (const x of hallazgos) {
 
 console.log('');
 for (const [archivo, lista] of porArchivo) {
-  console.log(`  ${archivo}`);
+  console.log(`  ${rutaHumana(archivo)}`);
   for (const x of lista) {
     console.log(`    L${x.linea} [${x.severidad}] ${x.tipo}: ${x.mensaje}`);
     console.log(`      -> ${x.hint}`);

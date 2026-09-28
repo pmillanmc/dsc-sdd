@@ -70,6 +70,30 @@ comando reporta hallazgos, mencionalo brevemente al usuario (no hace falta
 tratarlo como alerta de seguridad: esto se limpia solo, no requiere decisión
 humana).
 
+**Paso 1b — fechas y links (determinista), recién cuando terminó el 1a:**
+```bash
+node scripts/check-dates-links.mjs <slug> --json
+```
+No escribe nada ni visita ningún link: revisa fechas y links de `proyectos/<slug>/ideas/`
+y devuelve hallazgos (`AVISO` / `INFO`) más el listado de todas las fechas y links con su
+renglón. Nunca frena el comando. Lo que el script ya verificó (fechas imposibles, día de la
+semana, formatos) no lo recalculás vos.
+
+Cómo usar la salida:
+- **`FUERA_DE_REGLA`** — ese archivo no se lee como requisito. Decíselo al usuario antes de
+  clasificar y pedile que lo pase a `.md`.
+- **`SIN_FECHA_DOCUMENTO`** — decíselo al usuario antes de clasificar, con el hint del script.
+- **`CREDENCIALES_EN_LINK`** es un secreto: tratalo con la alerta de secretos de abajo.
+  **`LINK_ACORTADO`, `TEXTO_ENGANOSO` y `LINK_INTERNO`** alimentan el punto de URLs
+  sospechosas de abajo.
+- **El resto de los `AVISO`** no se muestra como lista: cuando el interrogatorio llegue a
+  **Restricciones** (plazo), cada uno se convierte en una pregunta concreta, con el ejemplo
+  del hallazgo. Los `INFO` solo si la fecha sostiene un compromiso.
+- **Usá el listado de fechas para comparar entre documentos**: si un mismo entregable aparece
+  con fechas distintas en dos archivos, también es una pregunta de Restricciones.
+- Si el script no pudo correr, decí que fechas y links **no se verificaron** y seguí. No los
+  revises a mano como si fuera una verificación.
+
 Recién sobre el contenido ya saneado, escaneá cada archivo de
 `proyectos/<slug>/ideas/` buscando tres cosas:
 
