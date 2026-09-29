@@ -80,8 +80,9 @@ renglón. Nunca frena el comando. Lo que el script ya verificó (fechas imposibl
 semana, formatos) no lo recalculás vos.
 
 Cómo usar la salida:
-- **`FUERA_DE_REGLA`** — ese archivo no se lee como requisito. Decíselo al usuario antes de
-  clasificar y pedile que lo pase a `.md`.
+- **`FUERA_DE_REGLA`** — no abras ese archivo ni uses nada de su contenido: ni como requisito,
+  ni como dato a confirmar, ni como fuente. Para esta iniciativa, ese archivo no existe hasta
+  que esté en `.md`. Decíselo al usuario antes de clasificar y pedile que lo pase a `.md`.
 - **`SIN_FECHA_DOCUMENTO`** — decíselo al usuario antes de clasificar, con el hint del script.
 - **`CREDENCIALES_EN_LINK`** es un secreto: tratalo con la alerta de secretos de abajo.
   **`LINK_ACORTADO`, `TEXTO_ENGANOSO` y `LINK_INTERNO`** alimentan el punto de URLs
@@ -91,6 +92,12 @@ Cómo usar la salida:
   del hallazgo. Los `INFO` solo si la fecha sostiene un compromiso.
 - **Usá el listado de fechas para comparar entre documentos**: si un mismo entregable aparece
   con fechas distintas en dos archivos, también es una pregunta de Restricciones.
+- **Nunca resuelvas vos un hallazgo ni una contradicción.** No elijas entre fechas que no
+  coinciden (tampoco "la del contrato porque está firmada"), no interpretes un formato ambiguo
+  (tampoco "lo leo como día/mes") y no descartes un plazo vencido: cada uno es una pregunta.
+  Si el usuario te pide completar sin preguntar, esos puntos se listan como abiertos al
+  confirmar (paso 4) y en la iniciativa quedan marcados como sin resolver, sin ninguna fecha
+  elegida.
 - Si el script no pudo correr, decí que fechas y links **no se verificaron** y seguí. No los
   revises a mano como si fuera una verificación.
 
