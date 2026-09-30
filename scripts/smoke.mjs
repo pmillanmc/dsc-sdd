@@ -226,6 +226,30 @@ function main() {
     }
   });
 
+  paso('check-dates-links tapa credenciales en fechas[].renglon del JSON', () => {
+    const path = join(P, 'ideas', 'minuta-creds-renglon.md');
+    const cuerpo = [
+      'Fecha: 15/10/2026',
+      '',
+      'Entrega 20/10/2026 ver https://usuario:clave@host.example/docs',
+      'Hito 22/10/2026 ver https://token@host.example/api',
+    ].join('\n');
+    writeFileSync(path, cuerpo, 'utf8');
+    try {
+      const outJson = correr('check-dates-links.mjs', SLUG, '--json');
+      debe(!outJson.includes('clave'), 'aparecio "clave" en el JSON');
+      debe(!outJson.includes('token'), 'aparecio "token" en el JSON');
+      debe(!outJson.includes('usuario:'), 'aparecio "usuario:" en el JSON');
+      const reporte = JSON.parse(outJson);
+      const mias = reporte.fechas.filter((f) => f.archivo.endsWith('minuta-creds-renglon.md'));
+      debe(mias.length >= 2, 'no listo las fechas del documento con creds');
+      debe(mias.every((f) => String(f.renglon).includes('***')), 'renglon sin *** tras tapar creds');
+      return 'renglon tapado user:pass y token-only';
+    } finally {
+      try { unlinkSync(path); } catch { /* restore */ }
+    }
+  });
+
   paso('check-dates-links no genera ruido en un documento sano', () => {
     const path = join(P, 'ideas', 'minuta-sana.md');
     const cuerpo = [
