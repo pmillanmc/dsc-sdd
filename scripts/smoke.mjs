@@ -292,6 +292,30 @@ function main() {
     }
   });
 
+  paso('check-dates-links no marca anclas ni links relativos como mal formados', () => {
+    const path = join(P, 'ideas', 'minuta-links-relativos.md');
+    const cuerpo = [
+      'Fecha: 15/10/2026',
+      '',
+      'Ver [la sección](#alcance) y [el título](#2-plan-de-trabajo).',
+      'Ver [notas](./notas.md), [otro](../docs/otro.md) y [guía](docs/guia.md).',
+      'Archivo suelto [resumen](resumen.md).',
+      'Pero esto sí: [detalle](ejemplo.com/docs).',
+    ].join('\n');
+    writeFileSync(path, cuerpo, 'utf8');
+    try {
+      const reporte = JSON.parse(correr('check-dates-links.mjs', SLUG, '--json'));
+      const m = reporte.hallazgos.filter((h) => h.archivo.endsWith('minuta-links-relativos.md'));
+      debe(!m.some((h) => h.tipo === 'LINK_MAL_FORMADO' && h.linea === 3), 'ancla marcada mal formada');
+      debe(!m.some((h) => h.tipo === 'LINK_MAL_FORMADO' && h.linea === 4), 'relativo marcado mal formado');
+      debe(!m.some((h) => h.tipo === 'LINK_MAL_FORMADO' && h.linea === 5), 'archivo local marcado mal formado');
+      debe(m.some((h) => h.tipo === 'LINK_MAL_FORMADO' && h.linea === 6), 'dominio sin esquema dejo de marcarse');
+      return 'anclas y relativos ok, dominio sin esquema sigue marcado';
+    } finally {
+      try { unlinkSync(path); } catch { /* restore */ }
+    }
+  });
+
   paso('check-dates-links no genera ruido en un documento sano', () => {
     const path = join(P, 'ideas', 'minuta-sana.md');
     const cuerpo = [
