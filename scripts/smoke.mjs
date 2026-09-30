@@ -316,6 +316,42 @@ function main() {
     }
   });
 
+  paso('check-dates-links no confunde nombres de archivo/producto con direcciones', () => {
+    const path = join(P, 'ideas', 'minuta-texto-enganoso.md');
+    const cuerpo = [
+      'Fecha: 15/10/2026',
+      '',
+      'Ver [README.md](https://github.com/u/repo) y [Node.js](https://nodejs.org).',
+      'Ojo con [google.com](https://evil.example/phish).',
+    ].join('\n');
+    writeFileSync(path, cuerpo, 'utf8');
+    try {
+      const r = JSON.parse(correr('check-dates-links.mjs', SLUG, '--json'));
+      const m = r.hallazgos.filter((h) => h.archivo.endsWith('minuta-texto-enganoso.md'));
+      debe(!m.some((h) => h.tipo === 'TEXTO_ENGANOSO' && h.linea === 3), 'archivo/producto marcado como enganoso');
+      debe(m.some((h) => h.tipo === 'TEXTO_ENGANOSO' && h.linea === 4), 'spoof real dejo de detectarse');
+      return 'archivos/productos ok, spoof real sigue marcado';
+    } finally { try { unlinkSync(path); } catch { /* restore */ } }
+  });
+
+  paso('check-dates-links reconoce IPv6 privado y mas dominios internos', () => {
+    const path = join(P, 'ideas', 'minuta-internos.md');
+    const cuerpo = [
+      'Fecha: 15/10/2026',
+      '',
+      'Panel <http://[fe80::1]/x> y storage <http://[fc00::1]/y>.',
+      'Portal <http://portal.intranet/z> y nas <http://nas.home/w>.',
+    ].join('\n');
+    writeFileSync(path, cuerpo, 'utf8');
+    try {
+      const r = JSON.parse(correr('check-dates-links.mjs', SLUG, '--json'));
+      const m = r.hallazgos.filter((h) => h.archivo.endsWith('minuta-internos.md'));
+      debe(m.filter((h) => h.tipo === 'LINK_INTERNO' && h.linea === 3).length === 2, 'IPv6 privado no reconocido');
+      debe(m.filter((h) => h.tipo === 'LINK_INTERNO' && h.linea === 4).length === 2, 'internos nuevos no reconocidos');
+      return 'IPv6 privado e internos nuevos ok';
+    } finally { try { unlinkSync(path); } catch { /* restore */ } }
+  });
+
   paso('check-dates-links no genera ruido en un documento sano', () => {
     const path = join(P, 'ideas', 'minuta-sana.md');
     const cuerpo = [
