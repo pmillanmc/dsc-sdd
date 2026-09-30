@@ -14,9 +14,9 @@
  *   node scripts/check-dates-links.mjs --path <archivo-o-dir> ruta explicita
  *   node scripts/check-dates-links.mjs <slug> --json          salida JSON
  *
- * Exit code: 0 siempre que el input se haya podido leer (avisa, no frena —
- * utilitario determinista, igual que sanitize / discovery-audit).
- * Exit 1 solo si falta el argumento o no hay nada que leer.
+ * Exit code: 0 si se pudo leer el input (incluye carpeta vacía: no hay documentos
+ * todavía, estado válido). Avisa, no frena — utilitario determinista, igual que
+ * sanitize / discovery-audit. Exit 1 solo si falta el argumento o la carpeta no existe.
  */
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
@@ -44,7 +44,7 @@ if (!objetivo) {
   process.exit(1);
 }
 if (!existsSync(objetivo)) {
-  console.error(`No existe: ${objetivo}`);
+  console.error(`No existe la carpeta a revisar: ${relative(process.cwd(), objetivo) || objetivo}`);
   process.exit(1);
 }
 
@@ -65,8 +65,13 @@ function listarArchivos(ruta) {
 
 const archivos = listarArchivos(objetivo);
 if (!archivos.length) {
-  console.error(`No hay archivos para revisar en: ${objetivo}`);
-  process.exit(1);
+  // Proyecto sin documentos todavía: estado válido, no un error.
+  if (JSON_OUT) {
+    console.log(JSON.stringify({ archivos: [], hallazgos: [], fechas: [], links: [] }, null, 2));
+  } else {
+    console.log('check-dates-links: no hay documentos para revisar.');
+  }
+  process.exit(0);
 }
 
 const resultados = archivos

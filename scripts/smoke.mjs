@@ -14,7 +14,7 @@
 
 import { join } from 'node:path';
 import { existsSync, mkdirSync, writeFileSync, rmSync, copyFileSync, readFileSync, appendFileSync, readdirSync, unlinkSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { ROOT, proyectoDir, readYaml, writeYaml, reservarIds, leerEventos, sha256 } from '../lib/store.mjs';
 import { marcarInicio } from '../lib/cascade.mjs';
 import { sanear } from '../lib/sanitize.mjs';
@@ -350,6 +350,22 @@ function main() {
       debe(m.filter((h) => h.tipo === 'LINK_INTERNO' && h.linea === 4).length === 2, 'internos nuevos no reconocidos');
       return 'IPv6 privado e internos nuevos ok';
     } finally { try { unlinkSync(path); } catch { /* restore */ } }
+  });
+
+  paso('check-dates-links sale limpio en un proyecto vacío', () => {
+    const vacio = join(P, 'ideas-vacio-tmp');
+    mkdirSync(vacio, { recursive: true });
+    try {
+      const res = spawnSync('node', [join(ROOT, 'scripts', 'check-dates-links.mjs'), '--path', vacio, '--json'],
+        { encoding: 'utf8', cwd: ROOT });
+      debe(res.status === 0, `exit ${res.status} en carpeta vacía (deberia ser 0)`);
+      const out = JSON.parse(res.stdout);
+      debe(Array.isArray(out.hallazgos) && out.hallazgos.length === 0, 'el JSON vacío no vino como corresponde');
+      debe((res.stderr || '').trim() === '', 'escribio algo en stderr (no deberia)');
+      return 'carpeta vacía -> exit 0, JSON vacío, sin ruta';
+    } finally {
+      try { rmSync(vacio, { recursive: true, force: true }); } catch { /* restore */ }
+    }
   });
 
   paso('check-dates-links no genera ruido en un documento sano', () => {
