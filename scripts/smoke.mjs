@@ -249,6 +249,25 @@ function main() {
     }
   });
 
+  paso('check-dates-links lee fechas en el texto visible de un link Markdown', () => {
+    const path = join(P, 'ideas', 'minuta-fecha-en-link.md');
+    const cuerpo = [
+      'Fecha: 15/10/2026',
+      '',
+      'Ver [entrega 3/4/2026](https://x.com/12/03) para el detalle.',
+    ].join('\n');
+    writeFileSync(path, cuerpo, 'utf8');
+    try {
+      const reporte = JSON.parse(correr('check-dates-links.mjs', SLUG, '--json'));
+      const fechas = reporte.fechas.filter((f) => f.archivo.endsWith('minuta-fecha-en-link.md'));
+      debe(fechas.some((f) => f.original.includes('3/4/2026')), 'no leyo la fecha del texto del link');
+      debe(!fechas.some((f) => f.original.trim() === '12/03'), 'leyo un numero de la URL como fecha');
+      return 'fecha del texto del link detectada, URL ignorada';
+    } finally {
+      try { unlinkSync(path); } catch { /* restore */ }
+    }
+  });
+
   paso('check-dates-links tapa credenciales en fechas[].renglon del JSON', () => {
     const path = join(P, 'ideas', 'minuta-creds-renglon.md');
     const cuerpo = [
