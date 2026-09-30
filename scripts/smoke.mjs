@@ -169,7 +169,7 @@ function main() {
       debe(tipoEn('FECHA_IMPOSIBLE', 3), 'no detecto FECHA_IMPOSIBLE en L3');
       debe(tipoEn('DIA_NO_COINCIDE', 4), 'no detecto DIA_NO_COINCIDE en L4');
       debe(tipoEn('MEZCLA_FORMATOS', 5), 'no detecto MEZCLA_FORMATOS en L5');
-      debe(tipoEn('SIN_ANIO', 6), 'no detecto SIN_ANIO en L6');
+      debe(tipoEn('POSIBLE_FECHA', 6), 'no detecto POSIBLE_FECHA en L6');
       debe(tipoEn('FECHA_RELATIVA', 8), 'no detecto FECHA_RELATIVA en L8');
       debe(tipoEn('ANTERIOR_AL_DOCUMENTO', 9), 'no detecto ANTERIOR_AL_DOCUMENTO en L9');
       debe(tipoEn('LINK_MAL_FORMADO', 10), 'no detecto LINK_MAL_FORMADO en L10');
@@ -223,6 +223,29 @@ function main() {
     } finally {
       try { unlinkSync(sinFecha); } catch { /* restore */ }
       try { unlinkSync(txt); } catch { /* restore */ }
+    }
+  });
+
+  paso('check-dates-links distingue fecha sin año de fracción/precio', () => {
+    const path = join(P, 'ideas', 'minuta-posible-fecha.md');
+    const cuerpo = [
+      'Fecha: 15/10/2026',
+      '',
+      'Precio aproximado 12.50 pesos.',
+      'Firmaron el 15 de marzo el acuerdo.',
+      'Reunion el lunes 3/4.',
+    ].join('\n');
+    writeFileSync(path, cuerpo, 'utf8');
+    try {
+      const reporte = JSON.parse(correr('check-dates-links.mjs', SLUG, '--json'));
+      const mios = reporte.hallazgos.filter((h) => h.archivo.endsWith('minuta-posible-fecha.md'));
+      debe(!mios.some((h) => h.tipo === 'FECHA_IMPOSIBLE'), '12.50 disparo FECHA_IMPOSIBLE');
+      debe(!mios.some((h) => h.tipo === 'POSIBLE_FECHA'), 'precio 12.50 salio como POSIBLE_FECHA');
+      debe(mios.some((h) => h.tipo === 'SIN_ANIO' && h.linea === 4), 'textual sin anio no dio SIN_ANIO');
+      debe(mios.some((h) => h.tipo === 'SIN_ANIO' && h.linea === 5), 'dia+num sin anio no dio SIN_ANIO');
+      return '12.50 ignorado, textual y dia+num conservan SIN_ANIO';
+    } finally {
+      try { unlinkSync(path); } catch { /* restore */ }
     }
   });
 
