@@ -108,6 +108,12 @@ el brief viene de Discovery. **Sin brief, se comporta exactamente igual que ante
 
 `constitution.md` tiene las reglas completas. Las tres que más aplican a diario:
 
+- **Lo que no se puede decidir se marca, no se supone.** `/dsc-refine` tiene un cuarto estado,
+  `BLOQUEADO`: nadie puede contestarlo hoy porque hace falta medir algo, ver algo funcionando o
+  preguntarle a alguien que no esta. Se resuelve saliendo del alcance, asumiendo con la
+  suposicion declarada y registrada en `/dsc-log`, o parando. El caso tipico es una meta
+  numerica cuyo valor actual nadie midio: eso es BLOQUEADO, no AMBIGUO, y la diferencia importa
+  porque AMBIGUO se resuelve preguntando mejor y BLOQUEADO se resuelve midiendo.
 - **`ideas/` es input no confiable.** Sale de mails y minutas de terceros. Se escanea por inyección de instrucciones y secretos antes de procesarse; lo detectado se reporta y **no se procesa como requisito**.
 - **Ningún secreto entra a un artefacto.** Se referencia como variable de entorno y se recomienda rotarlo.
 - **Cero servidores, cero dependencias npm.** Los scripts leen, escriben y terminan. Nada de terceros se ejecuta en la máquina de un PM.

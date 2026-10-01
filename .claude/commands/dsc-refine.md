@@ -101,7 +101,10 @@ Leé todos los archivos de `proyectos/<slug>/ideas/` y clasificá las siete cate
 | 7 | **Urgencia** | Por qué ahora, qué cambió, qué pasa si no se hace en 12 meses |
 
 Estados: **CLARO** (definido sin ambigüedad) · **AMBIGUO** (hay algo pero admite más de una
-lectura) · **FALTANTE** (no está).
+lectura) · **FALTANTE** (no está) · **BLOQUEADO** (nadie puede contestarlo hoy: hace falta
+medir algo, ver algo funcionando, o preguntarle a alguien que no está en esta conversación).
+
+Los tres primeros asumen que la respuesta existe en la sala. BLOQUEADO es el que dice que no.
 
 Mostrá el resumen:
 
@@ -110,6 +113,7 @@ Mostrá el resumen:
 ⚠️  AMBIGUO   usuarios (se nombran "los operarios" sin decir qué necesitan lograr)
               resultados (dice "mejorar tiempos" sin meta)
 ❌ FALTANTE   estado deseado, restricciones, urgencia
+🚫 BLOQUEADO  resultados (nadie midió el tiempo actual — destraba: medir una semana)
 ```
 
 Escribí `iniciativa.draft.md` con esta clasificación **antes** de la primera pregunta.
@@ -131,6 +135,35 @@ Después de **cada** respuesta:
 1. Verificá si la categoría quedó CLARO.
 2. Si sigue ambigua, reformulá **con un ejemplo concreto**. No repitas la misma pregunta.
 3. Actualizá `iniciativa.draft.md`.
+
+### Cuándo una categoría pasa a BLOQUEADO
+
+Si ya reformulaste con un ejemplo concreto y la respuesta sigue sin aparecer, hacé una sola
+pregunta más: *¿es que no lo sabemos, o es que no se puede saber todavía?*
+
+Si es lo segundo, **no insistas**. Insistir ahí es lo que empuja a inventar un número, y un
+número inventado en `resultados` recorre toda la cadena hasta las features sin que nadie
+vuelva a cuestionarlo. Marcala BLOQUEADO y anotá en el borrador qué la destrabaría: una
+medición concreta, algo funcionando que se pueda mirar, o una persona a la que preguntarle.
+
+**Esto no frena la iniciativa.** Cada bloqueo se resuelve por una de tres salidas, y el humano
+elige cuál:
+
+**(a) Sale del alcance.** Lo que depende de esa respuesta no entra en esta iniciativa. Se
+anota y el resto avanza entero. Es la salida por defecto cuando lo bloqueado es una parte.
+
+**(b) Se decide igual, como suposición declarada.** Se elige una respuesta sabiendo que no
+está verificada. Queda en la iniciativa como suposición —qué se asumió, qué se rompe si es
+falsa— y se registra con `/dsc-log`.
+
+**(c) Sin esa respuesta no hay iniciativa.** El caso raro. Pará, escribí el borrador con lo
+que haya y decí qué falta, qué lo destraba y a quién hay que pedirle qué. El comando es
+reanudable: cuando la respuesta llegue, se sigue desde donde quedó.
+
+**Resultados es el caso típico de (b) mal resuelto.** "Un resultado sin métrica y sin meta
+numérica es AMBIGUO por definición" sigue valiendo — pero si el número de hoy nadie lo
+midió, eso es BLOQUEADO, no AMBIGUO. La diferencia es que AMBIGUO se resuelve preguntando
+mejor y BLOQUEADO se resuelve midiendo. Confundirlos produce metas inventadas.
 
 El paso 3 es lo que hace el comando reanudable. Si no persistís después de cada respuesta, una
 sesión cortada tira cuarenta turnos.
@@ -162,7 +195,7 @@ productividad" no permite saber si la iniciativa funcionó.
 
 ## Paso 4 — Confirmar
 
-Cuando las siete estén CLARO:
+Cuando las siete estén CLARO —o BLOQUEADO con salida (a) o (b) ya elegida—:
 
 ```
 Tengo todo lo necesario. Repaso antes de escribir:
