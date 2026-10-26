@@ -14,7 +14,7 @@
 
 import { join } from 'node:path';
 import { existsSync, mkdirSync, writeFileSync, rmSync, copyFileSync, readFileSync, appendFileSync, readdirSync, unlinkSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { ROOT, proyectoDir, readYaml, writeYaml, reservarIds, leerEventos, sha256 } from '../lib/store.mjs';
 import { marcarInicio } from '../lib/cascade.mjs';
 import { sanear } from '../lib/sanitize.mjs';
@@ -132,6 +132,261 @@ function main() {
       return 'detecta, no escribe sin --write, limpia con --write';
     } finally {
       try { unlinkSync(sucio); } catch { /* el restore borra el proyecto entero */ }
+    }
+  });
+
+  paso('check-dates-links detecta fechas y links en ideas/', () => {
+    const path = join(P, 'ideas', 'minuta-fechas.md');
+    const clave = 'claveSecreta99xyz';
+    // CRLF a proposito: el script tiene que numerar bien en Windows.
+    const lineas = [
+      'Fecha: 15/10/2026',
+      '',
+      'Imposible: el 31/02/2026 no existe.',
+      'Dia malo: reunion el domingo 15/10/2026.',
+      'Mezcla: el 25/03/2026 y el 03/25/2026.',
+      'Sin anio: firmaron el 15/03 el acuerdo.',
+      `Invisible: reunion el 20/1\u200B0/2026.`,
+      'Relativa: lo vemos manana y en tres dias.',
+      'Compromiso de entrega 01/10/2026.',
+      'Mal formado: [detalle](ejemplo.com/docs)',
+      'Acortado: [corto](https://bit.ly/abc123)',
+      'Interno: [lan](http://192.168.1.10/admin)',
+      'Engano: [google.com](https://evil.example/phish)',
+      `Creds: [privado](https://usuario:${clave}@example.com/ruta)`,
+      'Sin https: http://inseguro.example.com/pagina',
+    ];
+    const payload = lineas.join('\r\n');
+    writeFileSync(path, payload, 'utf8');
+    try {
+      const outJson = correr('check-dates-links.mjs', SLUG, '--json');
+      debe(!outJson.includes(clave), 'la contraseña real aparecio en la salida JSON');
+      const reporte = JSON.parse(outJson);
+      debe(!reporte.archivos.some((a) => /leeme\.md$/i.test(a.archivo)), 'analizo LEEME.md');
+
+      const mios = reporte.hallazgos.filter((h) => h.archivo.endsWith('minuta-fechas.md'));
+      const tipoEn = (tipo, linea) => mios.some((h) => h.tipo === tipo && h.linea === linea);
+      debe(tipoEn('FECHA_IMPOSIBLE', 3), 'no detecto FECHA_IMPOSIBLE en L3');
+      debe(tipoEn('DIA_NO_COINCIDE', 4), 'no detecto DIA_NO_COINCIDE en L4');
+      debe(tipoEn('MEZCLA_FORMATOS', 5), 'no detecto MEZCLA_FORMATOS en L5');
+      debe(tipoEn('POSIBLE_FECHA', 6), 'no detecto POSIBLE_FECHA en L6');
+      debe(tipoEn('FECHA_RELATIVA', 8), 'no detecto FECHA_RELATIVA en L8');
+      debe(tipoEn('ANTERIOR_AL_DOCUMENTO', 9), 'no detecto ANTERIOR_AL_DOCUMENTO en L9');
+      debe(tipoEn('LINK_MAL_FORMADO', 10), 'no detecto LINK_MAL_FORMADO en L10');
+      debe(tipoEn('LINK_ACORTADO', 11), 'no detecto LINK_ACORTADO en L11');
+      debe(tipoEn('LINK_INTERNO', 12), 'no detecto LINK_INTERNO en L12');
+      debe(tipoEn('TEXTO_ENGANOSO', 13), 'no detecto TEXTO_ENGANOSO en L13');
+      debe(tipoEn('CREDENCIALES_EN_LINK', 14), 'no detecto CREDENCIALES_EN_LINK en L14');
+      debe(tipoEn('SIN_HTTPS', 15), 'no detecto SIN_HTTPS en L15');
+      debe(!tipoEn('SIN_HTTPS', 12), 'emitio SIN_HTTPS junto con LINK_INTERNO');
+
+      for (let i = 1; i < mios.length; i++) {
+        debe(mios[i].linea >= mios[i - 1].linea, 'hallazgos no ordenados por linea');
+      }
+
+      const credH = mios.find((h) => h.tipo === 'CREDENCIALES_EN_LINK');
+      debe(credH && credH.mensaje.includes('***:***'), 'creds no tapadas en hallazgos');
+      debe(!credH.mensaje.includes(clave), 'la clave aparecio en el mensaje de credenciales');
+      const credL = reporte.links.find((l) => l.archivo.endsWith('minuta-fechas.md') && l.linea === 14);
+      debe(credL && credL.destino.includes('***:***'), 'creds no tapadas en links');
+      debe(!credL.destino.includes(clave), 'la clave aparecio en links[].destino');
+
+      const fecInv = reporte.fechas.find((f) =>
+        f.archivo.endsWith('minuta-fechas.md') && f.normalizada === '2026-10-20');
+      debe(Boolean(fecInv), 'no reconocio la fecha con unicode invisible (20/10/2026)');
+      debe(reporte.fechas.every((f) => !String(f.renglon).includes('\r')), 'algun renglon trae \\r');
+
+      debe(readFileSync(path, 'utf8') === payload, 'modifico ideas/ (no debe escribir)');
+
+      correr('check-dates-links.mjs', SLUG); // exit 0 si no tira
+      return 'fechas, links, orden, CRLF, creds tapadas, sin escritura';
+    } finally {
+      try { unlinkSync(path); } catch { /* restore */ }
+    }
+  });
+
+  paso('check-dates-links avisa lo que queda fuera de regla', () => {
+    const sinFecha = join(P, 'ideas', 'sin-fecha.md');
+    const txt = join(P, 'ideas', 'notas.txt');
+    writeFileSync(sinFecha, 'Notas sueltas sin cabecera.\nFecha escondida aca no cuenta.\n', 'utf8');
+    writeFileSync(txt, 'Fecha: 01/01/2020\nesto no se analiza\n', 'utf8');
+    try {
+      const reporte = JSON.parse(correr('check-dates-links.mjs', SLUG, '--json'));
+      const hSin = reporte.hallazgos.filter((h) => h.archivo.endsWith('sin-fecha.md'));
+      debe(hSin.some((h) => h.tipo === 'SIN_FECHA_DOCUMENTO'), 'no aviso SIN_FECHA_DOCUMENTO');
+      const hTxt = reporte.hallazgos.filter((h) => h.archivo.endsWith('notas.txt'));
+      debe(hTxt.length === 1 && hTxt[0].tipo === 'FUERA_DE_REGLA', 'notas.txt no dio solo FUERA_DE_REGLA');
+      debe(!reporte.fechas.some((f) => f.archivo.endsWith('notas.txt')), 'analizo el contenido de .txt');
+      const archTxt = reporte.archivos.find((a) => a.archivo.endsWith('notas.txt'));
+      debe(archTxt && archTxt.analizado === false, 'marco .txt como analizado');
+      return 'SIN_FECHA_DOCUMENTO + FUERA_DE_REGLA';
+    } finally {
+      try { unlinkSync(sinFecha); } catch { /* restore */ }
+      try { unlinkSync(txt); } catch { /* restore */ }
+    }
+  });
+
+  paso('check-dates-links distingue fecha sin año de fracción/precio', () => {
+    const path = join(P, 'ideas', 'minuta-posible-fecha.md');
+    const cuerpo = [
+      'Fecha: 15/10/2026',
+      '',
+      'Precio aproximado 12.50 pesos.',
+      'Firmaron el 15 de marzo el acuerdo.',
+      'Reunion el lunes 3/4.',
+    ].join('\n');
+    writeFileSync(path, cuerpo, 'utf8');
+    try {
+      const reporte = JSON.parse(correr('check-dates-links.mjs', SLUG, '--json'));
+      const mios = reporte.hallazgos.filter((h) => h.archivo.endsWith('minuta-posible-fecha.md'));
+      debe(!mios.some((h) => h.tipo === 'FECHA_IMPOSIBLE'), '12.50 disparo FECHA_IMPOSIBLE');
+      debe(!mios.some((h) => h.tipo === 'POSIBLE_FECHA'), 'precio 12.50 salio como POSIBLE_FECHA');
+      debe(mios.some((h) => h.tipo === 'SIN_ANIO' && h.linea === 4), 'textual sin anio no dio SIN_ANIO');
+      debe(mios.some((h) => h.tipo === 'SIN_ANIO' && h.linea === 5), 'dia+num sin anio no dio SIN_ANIO');
+      return '12.50 ignorado, textual y dia+num conservan SIN_ANIO';
+    } finally {
+      try { unlinkSync(path); } catch { /* restore */ }
+    }
+  });
+
+  paso('check-dates-links lee fechas en el texto visible de un link Markdown', () => {
+    const path = join(P, 'ideas', 'minuta-fecha-en-link.md');
+    const cuerpo = [
+      'Fecha: 15/10/2026',
+      '',
+      'Ver [entrega 3/4/2026](https://x.com/12/03) para el detalle.',
+    ].join('\n');
+    writeFileSync(path, cuerpo, 'utf8');
+    try {
+      const reporte = JSON.parse(correr('check-dates-links.mjs', SLUG, '--json'));
+      const fechas = reporte.fechas.filter((f) => f.archivo.endsWith('minuta-fecha-en-link.md'));
+      debe(fechas.some((f) => f.original.includes('3/4/2026')), 'no leyo la fecha del texto del link');
+      debe(!fechas.some((f) => f.original.trim() === '12/03'), 'leyo un numero de la URL como fecha');
+      return 'fecha del texto del link detectada, URL ignorada';
+    } finally {
+      try { unlinkSync(path); } catch { /* restore */ }
+    }
+  });
+
+  paso('check-dates-links tapa credenciales en fechas[].renglon del JSON', () => {
+    const path = join(P, 'ideas', 'minuta-creds-renglon.md');
+    const cuerpo = [
+      'Fecha: 15/10/2026',
+      '',
+      'Entrega 20/10/2026 ver https://usuario:clave@host.example/docs',
+      'Hito 22/10/2026 ver https://token@host.example/api',
+    ].join('\n');
+    writeFileSync(path, cuerpo, 'utf8');
+    try {
+      const outJson = correr('check-dates-links.mjs', SLUG, '--json');
+      debe(!outJson.includes('clave'), 'aparecio "clave" en el JSON');
+      debe(!outJson.includes('token'), 'aparecio "token" en el JSON');
+      debe(!outJson.includes('usuario:'), 'aparecio "usuario:" en el JSON');
+      const reporte = JSON.parse(outJson);
+      const mias = reporte.fechas.filter((f) => f.archivo.endsWith('minuta-creds-renglon.md'));
+      debe(mias.length >= 2, 'no listo las fechas del documento con creds');
+      debe(mias.every((f) => String(f.renglon).includes('***')), 'renglon sin *** tras tapar creds');
+      return 'renglon tapado user:pass y token-only';
+    } finally {
+      try { unlinkSync(path); } catch { /* restore */ }
+    }
+  });
+
+  paso('check-dates-links no marca anclas ni links relativos como mal formados', () => {
+    const path = join(P, 'ideas', 'minuta-links-relativos.md');
+    const cuerpo = [
+      'Fecha: 15/10/2026',
+      '',
+      'Ver [la sección](#alcance) y [el título](#2-plan-de-trabajo).',
+      'Ver [notas](./notas.md), [otro](../docs/otro.md) y [guía](docs/guia.md).',
+      'Archivo suelto [resumen](resumen.md).',
+      'Pero esto sí: [detalle](ejemplo.com/docs).',
+    ].join('\n');
+    writeFileSync(path, cuerpo, 'utf8');
+    try {
+      const reporte = JSON.parse(correr('check-dates-links.mjs', SLUG, '--json'));
+      const m = reporte.hallazgos.filter((h) => h.archivo.endsWith('minuta-links-relativos.md'));
+      debe(!m.some((h) => h.tipo === 'LINK_MAL_FORMADO' && h.linea === 3), 'ancla marcada mal formada');
+      debe(!m.some((h) => h.tipo === 'LINK_MAL_FORMADO' && h.linea === 4), 'relativo marcado mal formado');
+      debe(!m.some((h) => h.tipo === 'LINK_MAL_FORMADO' && h.linea === 5), 'archivo local marcado mal formado');
+      debe(m.some((h) => h.tipo === 'LINK_MAL_FORMADO' && h.linea === 6), 'dominio sin esquema dejo de marcarse');
+      return 'anclas y relativos ok, dominio sin esquema sigue marcado';
+    } finally {
+      try { unlinkSync(path); } catch { /* restore */ }
+    }
+  });
+
+  paso('check-dates-links no confunde nombres de archivo/producto con direcciones', () => {
+    const path = join(P, 'ideas', 'minuta-texto-enganoso.md');
+    const cuerpo = [
+      'Fecha: 15/10/2026',
+      '',
+      'Ver [README.md](https://github.com/u/repo) y [Node.js](https://nodejs.org).',
+      'Ojo con [google.com](https://evil.example/phish).',
+    ].join('\n');
+    writeFileSync(path, cuerpo, 'utf8');
+    try {
+      const r = JSON.parse(correr('check-dates-links.mjs', SLUG, '--json'));
+      const m = r.hallazgos.filter((h) => h.archivo.endsWith('minuta-texto-enganoso.md'));
+      debe(!m.some((h) => h.tipo === 'TEXTO_ENGANOSO' && h.linea === 3), 'archivo/producto marcado como enganoso');
+      debe(m.some((h) => h.tipo === 'TEXTO_ENGANOSO' && h.linea === 4), 'spoof real dejo de detectarse');
+      return 'archivos/productos ok, spoof real sigue marcado';
+    } finally { try { unlinkSync(path); } catch { /* restore */ } }
+  });
+
+  paso('check-dates-links reconoce IPv6 privado y mas dominios internos', () => {
+    const path = join(P, 'ideas', 'minuta-internos.md');
+    const cuerpo = [
+      'Fecha: 15/10/2026',
+      '',
+      'Panel <http://[fe80::1]/x> y storage <http://[fc00::1]/y>.',
+      'Portal <http://portal.intranet/z> y nas <http://nas.home/w>.',
+    ].join('\n');
+    writeFileSync(path, cuerpo, 'utf8');
+    try {
+      const r = JSON.parse(correr('check-dates-links.mjs', SLUG, '--json'));
+      const m = r.hallazgos.filter((h) => h.archivo.endsWith('minuta-internos.md'));
+      debe(m.filter((h) => h.tipo === 'LINK_INTERNO' && h.linea === 3).length === 2, 'IPv6 privado no reconocido');
+      debe(m.filter((h) => h.tipo === 'LINK_INTERNO' && h.linea === 4).length === 2, 'internos nuevos no reconocidos');
+      return 'IPv6 privado e internos nuevos ok';
+    } finally { try { unlinkSync(path); } catch { /* restore */ } }
+  });
+
+  paso('check-dates-links sale limpio en un proyecto vacío', () => {
+    const vacio = join(P, 'ideas-vacio-tmp');
+    mkdirSync(vacio, { recursive: true });
+    try {
+      const res = spawnSync('node', [join(ROOT, 'scripts', 'check-dates-links.mjs'), '--path', vacio, '--json'],
+        { encoding: 'utf8', cwd: ROOT });
+      debe(res.status === 0, `exit ${res.status} en carpeta vacía (deberia ser 0)`);
+      const out = JSON.parse(res.stdout);
+      debe(Array.isArray(out.hallazgos) && out.hallazgos.length === 0, 'el JSON vacío no vino como corresponde');
+      debe((res.stderr || '').trim() === '', 'escribio algo en stderr (no deberia)');
+      return 'carpeta vacía -> exit 0, JSON vacío, sin ruta';
+    } finally {
+      try { rmSync(vacio, { recursive: true, force: true }); } catch { /* restore */ }
+    }
+  });
+
+  paso('check-dates-links no genera ruido en un documento sano', () => {
+    const path = join(P, 'ideas', 'minuta-sana.md');
+    const cuerpo = [
+      'Fecha: 15/10/2026',
+      '',
+      'Nos reunimos el 01/10/2026 para alinear alcance.',
+      'La entrega del hito 1 es el jueves 22/10/2026.',
+      'Referencia: [documentacion del producto](https://example.com/docs/guia).',
+      '',
+    ].join('\n');
+    writeFileSync(path, cuerpo, 'utf8');
+    try {
+      const reporte = JSON.parse(correr('check-dates-links.mjs', SLUG, '--json'));
+      const avisos = reporte.hallazgos.filter((h) =>
+        h.archivo.endsWith('minuta-sana.md') && h.severidad === 'AVISO');
+      debe(avisos.length === 0, `documento sano produjo AVISO: ${avisos.map((a) => a.tipo).join(', ')}`);
+      return 'cero AVISO';
+    } finally {
+      try { unlinkSync(path); } catch { /* restore */ }
     }
   });
 

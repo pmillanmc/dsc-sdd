@@ -11,6 +11,7 @@
       "Bash(node scripts/restore.mjs:*)",
       "Bash(node scripts/discovery-audit.mjs)",
       "Bash(node scripts/discovery-audit.mjs:*)",
+      "Bash(node scripts/check-dates-links.mjs:*)",
       "Bash(node scripts/gen-metrics.mjs)",
       "Bash(node scripts/gen-metrics.mjs:*)",
       "Bash(node scripts/estimate.mjs:*)",
