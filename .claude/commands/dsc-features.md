@@ -47,10 +47,14 @@ Una feature por vez, con `AskUserQuestion`:
 2. **Flujo principal** — paso a paso, desde dónde arranca el usuario hasta dónde termina
 3. **Estado vacío** — qué ve cuando todavía no hay datos
 4. **Estado de error** — qué ve cuando algo falla, y qué puede hacer al respecto
-5. **Diseño de referencia** — ¿hay un `.html`, un wireframe, una captura?
+5. **Diseño de referencia** — ¿hay un `.html`, un wireframe, una captura? Si no hay y la feature lo
+   amerita, ofrecé **prototiparlo** en vez de esperar un mockup: `/dsc-prototype` arma variantes
+   que el PM elige, y la ganadora queda como el `.html` de referencia (ver la skill `prototyping`).
+   Es la forma activa de contestar "cómo se ve". La misma ruta sirve para destrabar una regla de
+   negocio dudosa (rama lógica) antes de fijar la feature.
 
-Si hay un `.html`, registralo en el frontmatter: viaja en `assets/` del paquete de handoff, y
-`/sdd-refine` sabe resolver su cascada CSS para extraer los valores exactos.
+Si hay un `.html` —traído o prototipado—, registralo en el frontmatter: viaja en `assets/` del
+paquete de handoff, y `/sdd-refine` sabe resolver su cascada CSS para extraer los valores exactos.
 
 Con muchas features, avisá el volumen antes de empezar y ofrecé cortar:
 

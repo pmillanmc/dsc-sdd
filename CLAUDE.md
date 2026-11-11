@@ -40,6 +40,7 @@ brief.md → el equipo de desarrollo corre /sdd-refine, sin preguntas
 /dsc-status → dónde estamos y qué comando sigue
 /dsc-log    → registrar una decisión
 /dsc-impact → qué se invalida si cambio esto
+/dsc-prototype → ver algo funcionando antes de fijar una feature (UI o reglas) · opcional
 ```
 
 ## Comandos
@@ -58,6 +59,7 @@ invoque. No los leas todos.
 | roadmap, épicas, prioridades, trimestres | `/dsc-roadmap` | Visión aprobada |
 | release, alcance, próximos meses | `/dsc-release` | Roadmap aprobado |
 | features, descomponer, funcionalidades | `/dsc-features` | Release aprobado |
+| prototipo, prototipar, ver funcionando, boceto, variante | `/dsc-prototype` | Pregunta de diseño sin precedente (típico en `/dsc-features`) |
 | estimar, tamaño, talle | `/dsc-estimate` | Features aprobadas |
 | dividir, muy grande, XL | `/dsc-split` | Una feature dio XL |
 | revisar, feedback, observaciones | `/dsc-review` | Hay un artefacto generado |
@@ -77,14 +79,20 @@ invoque. No los leas todos.
 | continuar, snapshot, otra sesión | `/dsc-snapshot` | Cerrás sesión |
 | test, smoke, probar el modelo | `/dsc-test` | Tocaste el modelo |
 
-> Estado: **las ocho fases están cerradas.** Corren los 28 comandos, de una idea de negocio al
-> repo de desarrollo. `npm test` corre el smoke del propio modelo (11 pasos, sin residuos).
+> Estado: **las ocho fases están cerradas.** Corren los 29 comandos (28 de cadena + `/dsc-prototype`,
+> opcional/off-cycle), de una idea de negocio al repo de desarrollo. `npm test` corre el smoke del
+> propio modelo (11 pasos, sin residuos).
 
-## Skill
+## Skills
 
 `.claude/skills/discovery-standards/` concentra las reglas con progressive disclosure: el
 `SKILL.md` enruta a cinco referencias (ciclo, gobernanza, calidad, audit, handoff) y se carga
 solo la que aplica. Los comandos la referencian en vez de repetirla.
+
+`.claude/skills/prototyping/` es el oficio de armar un prototipo descartable (dos ramas: lógica y
+UI). Lo invoca `/dsc-prototype`. Produce un HTML autocontenido que **obedece la CSP de
+`lib/render.mjs`** (si no, queda en blanco — DEC-005). Es pre-codebase: lo durable es el veredicto
+y, si es de UI, el `.html` de referencia que viaja en `assets/` del handoff.
 
 ## Puente con SDD
 
