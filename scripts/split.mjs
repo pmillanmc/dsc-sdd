@@ -14,8 +14,9 @@ import { join } from 'node:path';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import {
   ROOT, proyectoDir, readYaml, writeYaml, writeAtomic, reservarIds,
-  emitirEvento, slugify,
+  emitirEvento, slugify, leerEstado, escribirEstado,
 } from '../lib/store.mjs';
+import { leerEntrada, escribirEntrada } from '../lib/cascade.mjs';
 
 function salir(msg) { console.error(msg); process.exit(1); }
 function arg(n) { const i = process.argv.indexOf(`--${n}`); return i === -1 ? null : process.argv[i + 1] ?? null; }
@@ -90,6 +91,35 @@ function main() {
     writeAtomic(destino, cabecera + contenido);
   }
 
+  // Reflejar la division en workflow-status.json. Sin esto, las hijas no existen
+  // en el estado y approve.mjs las rechaza ("la etapa no fue generada todavia"):
+  // quedarian inaprobables para siempre. Y la original seguiria APPROVED en el
+  // estado mientras el registro la da por SUPERSEDED — estado y registro en
+  // contradiccion permanente (audit/status la verian viva). Una sola escritura
+  // atomica con el lock optimista.
+  const estado = leerEstado(slug);
+  if (estado) {
+    const updatedAlLeer = estado.updated;
+    const ahora = new Date().toISOString();
+    // La original se retira: SUPERSEDED en cada etapa-con-items donde tenga entrada.
+    for (const et of ['features', 'estimation', 'handoff']) {
+      if (leerEntrada(estado, et, featureId)) {
+        escribirEntrada(estado, et, featureId, {
+          status: 'SUPERSEDED', superseded_by: nuevos, superseded_at: ahora,
+        });
+      }
+    }
+    // Cada hija entra como feature en curso: editable, revisable y aprobable.
+    for (const hija of hijas) {
+      escribirEntrada(estado, 'features', hija.id, {
+        status: 'IN_PROGRESS', version: 1, started_at: ahora,
+        started_by: quien, split_from: featureId,
+      });
+    }
+    estado.updated_by = quien;
+    escribirEstado(slug, estado, updatedAlLeer);
+  }
+
   emitirEvento(slug, {
     stage: 'features', item: featureId, command: '/dsc-split',
     event: 'ARTIFACT_UPDATED', split_into: nuevos, actor: quien,
@@ -107,4 +137,4 @@ function main() {
   console.log(`  4. /dsc-log para registrar la division`);
 }
 
-main();
+try { main(); } catch (e) { console.error(e.message); process.exit(1); }
