@@ -36,6 +36,32 @@ function leerFrontmatter(texto) {
   return out;
 }
 
+/** Palabra de la columna de tiempo del roadmap ("Trimestre", "Tramo", …), tomada
+ *  del encabezado de la tabla. Por defecto "trimestre" (roadmaps anteriores). */
+function leerEtiquetaTiempo(texto) {
+  const i = texto.indexOf('## Tabla del roadmap');
+  if (i === -1) return 'trimestre';
+  for (const linea of texto.slice(i).split('\n').slice(1)) {
+    const t = linea.trim();
+    if (t.startsWith('##')) break;
+    if (!t.startsWith('|')) continue;
+    const celdas = t.split('|').slice(1, -1).map((c) => c.trim());
+    if (/^épica$/i.test(celdas[0]) || /^epica$/i.test(celdas[0])) {
+      return (celdas[5] || 'trimestre').toLowerCase();
+    }
+  }
+  return 'trimestre';
+}
+
+/** Equipo/dedicación declarado en la sección "Equipo y dedicación", si existe:
+ *  la primera frase en negrita (p. ej. "2 personas full-time"). Null si no está. */
+function leerEquipo(texto) {
+  const m = texto.match(/##\s*Equipo y dedicación\s*\n([\s\S]*?)(?:\n##\s|$)/);
+  if (!m) return null;
+  const b = m[1].match(/\*\*(.+?)\*\*/);
+  return b ? b[1].trim() : null;
+}
+
 /**
  * Envoltorio fino sobre lib/roadmap.mjs: el parser es compartido con el audit.
  * Aca solo se decide que hacer cuando falta o esta vacia, que en un generador de
@@ -107,7 +133,8 @@ const SCRIPT = `<script>
 
   document.getElementById('titulo').textContent = 'Roadmap — ' + D.proyecto;
   document.getElementById('sub').textContent =
-    'Versión ' + D.version + ' · horizonte ' + D.horizonte + ' · ' + D.epicas.length + ' épicas';
+    'Versión ' + D.version + ' · horizonte ' + D.horizonte +
+    (D.equipo ? ' · ' + D.equipo : '') + ' · ' + D.epicas.length + ' épicas';
 
   var tl = document.getElementById('timeline');
   D.trimestres.forEach(function (q) {
@@ -157,6 +184,8 @@ function main() {
   const texto = readFileSync(md, 'utf8');
   const fm = leerFrontmatter(texto);
   const filas = leerTabla(texto);
+  const etiquetaTiempo = leerEtiquetaTiempo(texto);
+  const equipo = leerEquipo(texto);
 
   const orden = [...new Set(filas.map((f) => f.trimestre).filter(Boolean))].sort();
 
@@ -168,6 +197,8 @@ function main() {
     proyecto: fm.proyecto ?? slug,
     version: fm.version ?? '1',
     horizonte: fm.horizon ?? 'no declarado',
+    equipo,
+    etiquetaTiempo,
     generado: new Date().toISOString(),
     epicas,
     trimestres: orden.map((q) => ({ nombre: q, epicas: epicas.filter((f) => f.trimestre === q) })),
@@ -183,7 +214,7 @@ function main() {
     <span><i class="sw" style="background:var(--bad)"></i> Must Have</span>
     <span><i class="sw" style="background:var(--warn)"></i> Should Have</span>
     <span><i class="sw" style="background:var(--accent)"></i> Could Have</span>
-    <span><i class="sw" style="background:var(--warn)"></i> &#8599; la dependencia está en otro trimestre</span>
+    <span><i class="sw" style="background:var(--warn)"></i> &#8599; la dependencia está en otro ${etiquetaTiempo}</span>
     <span><i class="sw" style="background:var(--bad)"></i> ? la dependencia no existe en el roadmap</span>
   </div>
 </main>
@@ -197,7 +228,7 @@ function main() {
     scripts: `<script>${moduloDatos(datos, 'DSC_ROADMAP')}</script>\n${SCRIPT}`,
   }));
 
-  console.log(`Roadmap visual generado: ${datos.epicas.length} épicas en ${orden.length} trimestres.`);
+  console.log(`Roadmap visual generado: ${datos.epicas.length} épicas en ${orden.length} ${etiquetaTiempo}s.`);
   console.log(`Abrilo con doble clic: proyectos/${slug}/outputs/roadmap/roadmap.html`);
 }
 

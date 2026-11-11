@@ -2,10 +2,13 @@
 
 ## El criterio
 
-`/sdd-refine` en el repo de desarrollo tiene que generar `input.md` **sin hacer una sola
-pregunta**: `rondas_de_preguntas: 0`.
+El **objetivo** es que `/sdd-refine` genere `input.md` sin preguntar: `rondas_de_preguntas: 0`.
+Es la métrica de salud del handoff, no una prohibición sobre SDD.
 
-Si pregunta algo, quedó un hueco en el Discovery. Cada handoff es una verificación del modelo.
+Si SDD pregunta algo, quedó un hueco en el Discovery: no es un fallo prohibido, es una **señal**.
+SDD lo resuelve con el humano para no frenar y lo devuelve como feedback (`QUESTION`/`MAJOR`)
+contra la feature de origen, para taparlo en la fuente. Cada handoff mide el modelo; cuanto más
+cerca de 0, mejor.
 
 ## El paquete
 

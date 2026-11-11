@@ -1,12 +1,17 @@
 # Contrato de handoff
 
-`contract_version: 1`
+`contract_version: 2`
 
 El borde entre Discovery y el equipo de desarrollo. Es la razón de ser del modelo: si esto
 funciona, hacer Discovery ahorra trabajo; si no, lo duplica.
 
-**Criterio de éxito, medible:** `/sdd-refine` sobre un brief exportado registra
-`rondas_de_preguntas: 0` y `categorias_faltantes: 0`.
+**Objetivo, medible (no prohibición):** que `/sdd-refine` sobre un brief exportado registre
+`rondas_de_preguntas: 0` y `categorias_faltantes: 0`. Es la **meta de salud** del handoff, no una
+mordaza sobre SDD: SDD conserva el derecho a preguntar si encuentra una ambigüedad genuina que lo
+obligaría a suponer. Una pregunta de SDD **no es un fallo** — es la señal de que quedó un hueco, y
+vuelve como feedback (`QUESTION`/`MAJOR`, ver `feedback.md`) contra la feature de origen para
+taparlo acá. Cuanto más cerca de 0, mejor hicimos Discovery; un número mayor es feedback, no un
+veredicto.
 
 ---
 
@@ -98,7 +103,7 @@ Tres parches **aditivos**. `sdd-model` sin Discovery se comporta exactamente igu
 | # | Archivo | Cambio |
 |---|---|---|
 | P1 | `specs/_registry/features.template.yaml` | Campos opcionales `discovery_id`, `epic`, `release`, `size`. `null` si la feature no vino de Discovery |
-| P2 | `.claude/commands/sdd-refine.md` | Si existe `drafts/brief.md` con `discovery_id`: validar las 6 secciones y saltear el grilling. Si falta alguna, preguntar **solo por esa**. El check de seguridad se mantiene siempre |
+| P2 | `.claude/commands/sdd-refine.md` | Si existe `drafts/brief.md` con `discovery_id`: validar las 6 secciones y **correr igual la verificación de ambigüedad** — el grilling **no se saltea**. No re-preguntar lo que ya está claro (un brief bien hecho da `rondas_de_preguntas: 0`), pero preguntar donde haya ambigüedad genuina o falte una sección, y devolver eso a Discovery como feedback. El check de seguridad se mantiene siempre |
 | P3 | `.claude/commands/sdd-generate.md` | Usar `feature_id` y `domain` del brief en vez de proponerlos. Propagar la trazabilidad al registro |
 
 El bypass es sobre el **grilling**, nunca sobre la validación de seguridad: un brief también es

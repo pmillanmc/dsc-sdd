@@ -24,8 +24,9 @@ ideas/  →  iniciativa  →  visión  →  roadmap  →  release  →  features
 ```
 
 Cada paso tiene su comando y su aprobación. La última etapa entrega un `brief.md` al
-[sdd-model](../sdd-model), que lo toma **sin hacer una sola pregunta** — ese es el criterio de
-éxito del modelo entero.
+[sdd-model](../sdd-model) tan completo que lo toma **sin necesidad de preguntar** — esa es la
+**meta** del modelo. Si SDD igual encuentra un hueco, pregunta y lo devuelve como feedback: la
+meta es que no haga falta, no prohibirle que lo haga.
 
 ## Cómo empezar
 
