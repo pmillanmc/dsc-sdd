@@ -1,6 +1,6 @@
 global:
   PRY: 1
-  DEC: 10
+  DEC: 16
 proyectos:
   portal-de-clientes:
     F: 3

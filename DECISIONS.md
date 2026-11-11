@@ -19,6 +19,8 @@ Lo escribe `/dsc-log`. Los IDs se reservan desde `registry/ids.yaml`.
 | DEC-008 | Las dependencias entre épicas se declaran en una columna de la tabla del roadmap | Producto | ACTIVE | 2026-08-28 |
 | DEC-009 | `started_at` se persiste en el estado, no solo como evento | Proceso | ACTIVE | 2026-08-28 |
 | DEC-010 | Cambiar algo aprobado: dos caminos y un criterio — contradice o precisa | Producto | ACTIVE | 2026-08-31 |
+| DEC-015 | SDD conserva el derecho a preguntar; `rondas_de_preguntas: 0` pasa de regla a meta (handoff v2) | Producto | ACTIVE | 2026-11-05 |
+| DEC-016 | Prototipado integrado en Discovery (skill `prototyping` + `/dsc-prototype`) | Proceso | ACTIVE | 2026-11-05 |
 
 ---
 
@@ -797,3 +799,136 @@ conserve la entrega, y que `approve.mjs` se niegue sobre algo aprobado derivando
 
 Los seis avisos del chequeo 12 en `proyecto-1` siguen ahí a propósito: son reales. Se apagan cuando
 esas features se reabran y se vuelvan a firmar, o se restauren.
+
+## DEC-015
+
+**Fecha:** 2026-11-05
+**Tipo:** Producto
+**Estado:** ACTIVE
+**Responsable:** Patricio Millán
+**Proyecto:** global
+**command_origin:** revisión del contrato de handoff Discovery → SDD
+
+### Título
+
+SDD conserva el derecho a preguntar; `rondas_de_preguntas: 0` pasa de regla a meta (handoff v2)
+
+### Gap o motivo
+
+El contrato de handoff declaraba como **criterio de éxito** que `/sdd-refine` tomara el brief "sin
+hacer una sola pregunta", y `references/sdd-handoff.md` + `README.md` trataban cualquier pregunta
+de SDD como "un hueco en Discovery / un bug del modelo". Eso contradice el principio compartido de
+los dos modelos: *nunca rellenes un hueco con una suposición silenciosa*. Si a SDD se le **prohíbe**
+preguntar, un brief con un hueco sutil lo obliga a lo único prohibido —inventar— o a frenar en
+seco. Prohibir la pregunta no cierra el hueco: lo esconde.
+
+### Alternativas consideradas
+
+1. Mantener el criterio absoluto ("0 preguntas; cualquier pregunta = bug del modelo").
+2. Reencuadrar `0 preguntas` como meta de salud + señal, y dejar que SDD pregunte ante una
+   ambigüedad genuina, devolviéndola como feedback.
+
+### Por qué se descartaron
+
+1. Es la que genera el problema: fuerza a SDD a inventar o a trabarse, y mide el modelo con una
+   vara que su propio principio contradice. Se eligió la alternativa 2.
+
+### Decisión tomada
+
+El grilling de `/sdd-refine` **corre siempre**, también sobre un brief de Discovery: "completo"
+(6 secciones, sin placeholders) no se trata como "claro" —se verifica—. No se re-pregunta lo que
+ya está claro, pero el chequeo **no se saltea**. Con eso, `rondas_de_preguntas: 0` deja de ser
+prohibición y pasa a ser **meta de salud + señal**: es el resultado cuando el chequeo no encontró
+ambigüedad, no un bypass. Donde la hay, SDD la resuelve con el humano y la devuelve como feedback
+(`QUESTION`/`MAJOR`, ver `feedback.md`) contra la feature de origen, para taparla en la fuente. Se bumpea `contract_version` del handoff de `1` a
+`2`. El gate de exportación (secciones completas, sin placeholders, etc.) no cambia: sigue siendo
+correcto rechazar un brief incompleto.
+
+### Motivo
+
+El receptor siempre tiene que poder marcar un hueco real. La meta sigue siendo que SDD no necesite
+preguntar —cuanto más cerca de 0, mejor hicimos Discovery—, pero una pregunta pasa a ser
+información que mejora el brief en la fuente, no un fallo prohibido.
+
+`contracts/chain.md` **no se tocó**: su "0 preguntas" es sobre `## USUARIO`, que es derivable de la
+cadena de usuarios; ahí 0 preguntas sigue siendo lo correcto. La reframe aplica a ambigüedades
+**no derivables** que SDD detecta más cerca de la implementación.
+
+### Artefactos modificados
+
+- `contracts/handoff.md` (criterio + bump a `contract_version: 2`)
+- `.claude/skills/discovery-standards/references/sdd-handoff.md`
+- `README.md`
+- `registry/ids.yaml` (contador DEC → 15)
+- Contraparte en **sdd-model**: `.claude/commands/sdd-refine.md` (Paso 0) + entrada en su `DECISIONS.md`.
+
+### Impacto en la cadena
+
+Ninguno sobre artefactos de proyecto. Es un cambio del contrato entre modelos: SDD ya reconoce
+`contract_version` 1 y 2. Los briefs ya exportados con v1 siguen válidos (el cambio es aditivo:
+SDD gana el derecho a preguntar, no pierde el bypass).
+
+## DEC-016
+
+**Fecha:** 2026-11-05
+**Tipo:** Proceso
+**Estado:** ACTIVE
+**Responsable:** Patricio Millán
+**Proyecto:** global
+**command_origin:** integración de prototipado (fiel al skill de Matt Pocock)
+
+### Título
+
+Prototipado integrado en Discovery (skill `prototyping` + `/dsc-prototype`)
+
+### Gap o motivo
+
+Discovery resuelve ambigüedades **en texto** (el grilling de `/dsc-refine` y `/dsc-features`), pero
+algunas preguntas de diseño no se contestan en palabras: *"¿cómo se ve esta pantalla?"*, *"¿estas
+reglas de negocio se sostienen?"*. Es exactamente el destrabador *"ver algo funcionando"* del estado
+`BLOQUEADO`. Además, `/dsc-features` ya tenía un slot esperando un HTML de forma **pasiva**: la
+pregunta 5 de UI/FLUJO (*"¿hay un `.html`?"*) y el campo *Diseño de referencia* →
+`assets/<archivo>.html`, que el handoff ya hace viajar y `/sdd-refine` ya sabe consumir.
+
+### Alternativas consideradas
+
+1. Dejar el prototipado solo en `sdd-model` (donde ya se había agregado como `/sdd-prototype`).
+2. Integrarlo también en Discovery, como skill + comando fino enganchado en `/dsc-features`.
+
+### Por qué se descartaron
+
+1. Pone el prototipado en el lugar **secundario**. Discovery es donde se moldea el brief y donde los
+   unknown-unknowns deben morir antes del handoff (el criterio "SDD toma el brief sin preguntar").
+   Además, las restricciones de Discovery —sin server, HTML que se abre con doble clic, audiencia
+   no-dev— encajan **exactas** con el prototipo autocontenido de Matt (*"handeá la demo a un no-dev
+   para que sienta el modelo"*). Se eligió la 2.
+
+### Decisión tomada
+
+Skill `prototyping` (dos ramas: **lógica** — ¿las reglas se sostienen? — y **UI** — ¿cómo se ve?;
+HTML autocontenido con la **CSP de `lib/render.mjs`** para no caer en DEC-005) + comando fino
+`/dsc-prototype` (opcional, off-cycle), que `/dsc-features` ofrece en su pregunta 5. **Pre-codebase:**
+lo durable es el **veredicto** (que alimenta UI/FLUJO, reglas de negocio o DONE CRITERIA) y, si es de
+UI, el **`.html` de referencia** en `outputs/features/assets/`, que viaja en `assets/` del handoff.
+`sdd-model` conserva su propio `/sdd-prototype` para el caso que necesita el codebase corriendo.
+
+### Motivo
+
+Flushear unknown-unknowns **temprano**, con el gusto del PM aplicado antes de congelar la feature —
+fiel a Matt Pocock. El asset reutiliza un canal que **ya existía** (el `assets/` del handoff), así
+que no hay plumbing nuevo: el prototipo escribe donde el modelo ya esperaba un HTML.
+
+### Artefactos modificados
+
+- `.claude/skills/prototyping/` (SKILL.md, logica.md, ui.md) — nuevo
+- `.claude/commands/dsc-prototype.md` — nuevo
+- `.claude/commands/dsc-features.md` (pregunta 5: de preguntar por un `.html` a ofrecer prototiparlo)
+- `CLAUDE.md` (diagrama EN CUALQUIER MOMENTO, tabla de comandos, conteo 28→29, sección Skills)
+- `registry/ids.yaml` (contador DEC → 16)
+- Contraparte en **sdd-model**: `/sdd-prototype` ya existente (caso codebase).
+
+### Impacto en la cadena
+
+Ninguno sobre artefactos de proyecto. `/dsc-prototype` es **opcional y off-cycle**: no es una etapa,
+no toca `config/workflow.yaml`, `workflow-status.json` ni la cascada `STALE`. Si no se usa, nada
+cambia. Falta validarlo con `/dsc-test` / `npm test` y una corrida real (pendiente, acordado).
