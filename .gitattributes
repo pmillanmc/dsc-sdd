@@ -1,0 +1,13 @@
+# Normalizacion de fin de linea.
+# Sin esto, un archivo editado en Windows se commitea con CRLF y git lo reporta
+# como reescrito entero: el diff real queda sepultado. Paso en este mismo repo —
+# DECISIONS.md figuraba con 1994 lineas cambiadas cuando eran 396, y approve.mjs
+# con 421 sobre un archivo de 190.
+* text=auto eol=lf
+
+# Binarios: nunca normalizar.
+*.png binary
+*.jpg binary
+*.pdf binary
+*.docx binary
+*.xlsx binary
