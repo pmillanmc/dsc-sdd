@@ -87,11 +87,18 @@ function main() {
   copyFileSync(objetivo.archivo, destino);
   const hash = sha256(readFileSync(destino, 'utf8'));
 
+  // La restauracion es una version NUEVA cuyo contenido viene de v{objetivo.n}.
+  // NO reusa el numero viejo: si lo hiciera, al aprobarla approve.archivar
+  // escribiria history/.../v{objetivo.n}.md otra vez y pisaria el original —
+  // la unica red de rollback sin git. El numero avanza como en reabrir.
+  const nuevaVersion = Math.max(versionActual ?? 0, ...versiones.map((v) => v.n)) + 1;
+
   // La version restaurada vuelve a revision: nadie firmo ESTA restauracion.
   escribirEntrada(estado, etapa, itemId, {
     status: 'IN_REVIEW',
-    version: objetivo.n,
+    version: nuevaVersion,
     hash,
+    approved_at: undefined,
     approvals: {},
     pending_roles: [],
     restored_from: `v${objetivo.n}`,
@@ -101,7 +108,7 @@ function main() {
     stale_cause: undefined,
   });
 
-  const invalidados = marcarStale(estado, etapa, itemId, objetivo.n);
+  const invalidados = marcarStale(estado, etapa, itemId, nuevaVersion);
 
   estado.updated_by = quien;
   estado.blocked_by = null;
@@ -111,14 +118,14 @@ function main() {
 
   emitirEvento(slug, {
     stage: etapa, item: itemId, command: '/dsc-restore', event: 'ARTIFACT_UPDATED',
-    version: objetivo.n, actor: quien, restored_from: `v${objetivo.n}`,
+    version: nuevaVersion, actor: quien, restored_from: `v${objetivo.n}`,
     invalidated: invalidados.map((i) => (i.item ? `${i.etapa}/${i.item}` : i.etapa)),
   });
 
-  console.log(`RESTAURADO — ${referencia} vuelve a v${objetivo.n}\n`);
+  console.log(`RESTAURADO — ${referencia} recupera el contenido de v${objetivo.n}\n`);
   console.log(`  Restaurado por  ${quien}`);
-  console.log(`  Version previa  v${versionActual ?? '?'} (archivada)`);
-  console.log(`  Estado          IN_REVIEW — la restauracion no esta firmada por nadie`);
+  console.log(`  Version previa  v${versionActual ?? '?'} (sigue archivada, intacta)`);
+  console.log(`  Version nueva   v${nuevaVersion} — IN_REVIEW, la restauracion no esta firmada por nadie`);
 
   if (invalidados.length) {
     console.log(`\n  ${invalidados.length} artefacto(s) quedaron OBSOLETOS:`);

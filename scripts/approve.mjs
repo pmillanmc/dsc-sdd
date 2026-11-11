@@ -43,6 +43,19 @@ function archivar(slug, etapa, itemId, version, origen) {
   const dir = join(proyectoDir(slug), 'outputs', 'history', etapa, id);
   mkdirSync(dir, { recursive: true });
   const destino = join(dir, `v${version}.md`);
+  // history/ es append-only: una version archivada no se pisa nunca. Si ya existe
+  // con OTRO contenido, el numero de version se reuso (un bug aguas arriba) y
+  // sobrescribir destruiria la unica red de rollback — se corta en vez de corromper.
+  // Mismo contenido => reintento idempotente, no se hace nada.
+  if (existsSync(destino)) {
+    if (readFileSync(destino, 'utf8') !== readFileSync(origen, 'utf8')) {
+      throw new Error(
+        `history/${etapa}/${id}/v${version}.md ya existe con otro contenido: ` +
+        `no se sobrescribe una version archivada. Indica un numero de version reusado.`
+      );
+    }
+    return destino;
+  }
   copyFileSync(origen, destino);
   return destino;
 }
