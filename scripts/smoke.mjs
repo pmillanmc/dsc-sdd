@@ -245,7 +245,7 @@ function main() {
     try {
       // Un roadmap con ciclo (EP001 <-> EP002) y una referencia rota (EP099).
       writeFileSync(rm, bueno.replace(
-        /\| EP001 \|.*\|\n/,
+        /\| EP001 \|.*\|\r?\n/,
         '| EP001 | Verificar la cadena de punta a punta | BC01 | Must Have | U01 | Q1 | EP002 |\n' +
         '| EP002 | Segunda epica del caso de prueba | BC01 | Must Have | U01 | Q1 | EP001, EP099 |\n'
       ), 'utf8');
